@@ -8,9 +8,9 @@
 <meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Pádel">
+<meta name="apple-mobile-web-app-title" content="PP AM">
 <meta name="theme-color" content="#1d5ea8">
-<title>Agenda de Pádel</title>
+<title>PP AM</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d5ea8'/%3E%3Crect x='14' y='10' width='36' height='44' rx='3' fill='none' stroke='white' stroke-width='4'/%3E%3Cline x1='14' y1='32' x2='50' y2='32' stroke='white' stroke-width='4' stroke-dasharray='4 3'/%3E%3Ccircle cx='40' cy='20' r='5' fill='%23d9e021'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
@@ -69,7 +69,7 @@ h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0;letter-spa
 .btn.icon{padding:6px 10px;font-size:16px;line-height:1}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--court);outline-offset:2px}
-input[type=text],input[type=time],select{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input[type=text],input[type=time],input[type=password],select{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
 .muted{color:var(--muted)}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--court-soft);color:var(--court)}
 .tag.open{background:var(--open-bg);color:var(--open-ink)}
@@ -118,8 +118,13 @@ input[type=text],input[type=time],select{font:500 15px var(--body);color:var(--i
 .field{display:grid;grid-template-columns:1fr 6px 1fr;background:var(--court-soft)}
 .side{display:grid;gap:6px;padding:10px}
 .net{background:repeating-linear-gradient(180deg,var(--court) 0 4px,transparent 4px 7px)}
-.slot{display:flex;align-items:center;gap:6px;min-height:38px;padding:6px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--line);font-weight:500;min-width:0}
-.slot .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:38px;padding:6px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--line);font-weight:500;min-width:0}
+.slot .nm{flex:1 1 100%;min-width:0;overflow-wrap:anywhere;line-height:1.25}
+.slot > .btn{flex:1 1 100%}
+.slot .confirm{flex:1 1 100%}
+.slot .confirm .btn{flex:1}
+.daywa{grid-column:1/-1}
+.dl .btn{margin-top:8px}
 .slot.open{background:var(--open-bg);border:1px dashed var(--open-line);color:var(--open-ink)}
 .slot.mine{background:var(--me-bg);border-color:var(--me-line)}
 .slot select{width:100%;padding:6px;font-size:14px;background:var(--surface)}
@@ -147,6 +152,8 @@ input[type=text],input[type=time],select{font:500 15px var(--body);color:var(--i
 #adminBtn[aria-pressed="true"]{background:var(--court);border-color:var(--court);color:var(--court-ink)}
 .pinbox{padding-block:0 12px}
 .pinbox form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.me b{color:var(--ink)}
+.pinlist{display:grid;gap:4px;margin-top:10px;font-variant-numeric:tabular-nums}
 .offline{background:var(--danger-soft);color:var(--danger);font-weight:600;font-size:13px;text-align:center;padding:6px 16px}
 code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em;background:var(--court-soft);padding:1px 5px;border-radius:4px}
 @media (max-width:620px){.week{margin-left:0;order:3;width:100%;justify-content:space-between}.hbtns{margin-left:auto}}
@@ -157,16 +164,14 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em;backgroun
   <div class="offline" id="offline" hidden>Sin conexión. Los cambios se guardarán cuando vuelvas a tener internet.</div>
   <div class="wrap">
     <div class="hrow">
-      <h1>Agenda de <span>Pádel</span></h1>
+      <h1>PP <span>AM</span></h1>
       <div class="week">
         <button class="btn icon" id="prevW" aria-label="Semana anterior">‹</button>
         <div class="wk"><b id="weekLbl">—</b><small id="weekTag"></small></div>
         <button class="btn icon" id="nextW" aria-label="Semana siguiente">›</button>
       </div>
       <div class="hbtns">
-        <label class="me" for="meSel">Soy
-          <select id="meSel"><option value="">— elige tu nombre —</option></select>
-        </label>
+        <div class="me" id="who"></div>
         <button class="btn small" id="adminBtn" aria-pressed="false">Admin</button>
       </div>
     </div>
@@ -176,6 +181,15 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92em;backgroun
         <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" maxlength="12" style="width:140px">
         <button class="btn primary small" type="submit">Entrar</button>
         <button class="btn small" type="button" id="pinCancel">Cancelar</button>
+      </form>
+    </div>
+    <div class="pinbox" id="loginBox" hidden>
+      <form id="loginForm">
+        <label for="loginName" style="font-weight:600">Entrar como</label>
+        <select id="loginName"></select>
+        <input type="password" id="loginPin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="Tu PIN" style="width:110px" aria-label="Tu PIN">
+        <button class="btn primary small" type="submit">Entrar</button>
+        <button class="btn small" type="button" id="loginCancel">Cancelar</button>
       </form>
     </div>
     <nav id="tabs" role="tablist"></nav>
@@ -210,8 +224,11 @@ const dateOf = (week,i) => addDays(parse(week), i);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ls = { get(k){ try{return localStorage.getItem(k)}catch{return null} }, set(k,v){ try{ v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v)}catch{} } };
 const hash = s => { let h = 5381; for (const c of "padel:" + s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h.toString(36); };
+const playerHash = (pid, pin) => hash(pid + ":" + pin);
+const newPin = () => String(Math.floor(1000 + Math.random() * 9000));
 const toArr = x => Array.isArray(x) ? x : (x && typeof x === "object") ? Object.keys(x).sort((a,b)=>a-b).map(k => x[k]) : [];
-const normCourts = v => toArr(v).filter(Boolean).map(c => ({ time: c.time || "", slots: [0,1,2,3].map(i => toArr(c.slots)[i] || "") }));
+const DEFAULT_TIME = "06:00";
+const normCourts = v => toArr(v).filter(Boolean).map(c => ({ time: c.time || DEFAULT_TIME, slots: [0,1,2,3].map(i => toArr(c.slots)[i] || "") }));
 
 const today = new Date();
 const thisWeek = ymd(monday(today));
@@ -220,12 +237,21 @@ const nextWeek = ymd(addDays(monday(today), 7));
 const defaultSched = (today.getDay() === 6 || today.getDay() === 0) ? nextWeek : thisWeek;
 
 const S = {
-  weeks: { avail: nextWeek, sched: defaultSched },
+  weeks: { avail: [4,5,6,0].includes(today.getDay()) ? nextWeek : thisWeek, sched: defaultSched },
   players: {}, avail: {}, games: {}, loaded: { players:false, avail:false, games:false },
-  me: ls.get("padel.me") || "", admin: ls.get("padel.admin") === "1", tab: ls.get("padel.tab") || "calendario",
+  me: ls.get("padel.me") || "", meKey: ls.get("padel.meKey") || "", loginOpen: false, newPins: {}, fails: 0, blockedUntil: 0, admin: ls.get("padel.admin") === "1", tab: ls.get("padel.tab") || "calendario",
   schedDay: Math.max(0, (today.getDay()+6)%7), showAll: false, confirm: null, wa: false,
   pinHash: hash(DEFAULT_PIN), online: true, pinOpen: false
 };
+// La encuesta de la próxima semana se abre el jueves (jueves a domingo).
+const pollOpen = [4,5,6,0].includes(today.getDay());
+const defaultWeek = g => g === "avail" ? (pollOpen ? nextWeek : thisWeek) : defaultSched;
+// Jugadores: siempre la semana actual completa; desde el jueves también la siguiente (calendario y disponibilidad).
+function allowed(g){ if (S.admin) return null; return pollOpen ? [thisWeek, nextWeek] : [thisWeek]; }
+function clampWeeks(){
+  ["avail","sched"].forEach(g => { const a = allowed(g);
+    if (a && !a.includes(S.weeks[g])) S.weeks[g] = a.includes(defaultWeek(g)) ? defaultWeek(g) : a[0]; });
+}
 const group = () => S.tab === "disponibilidad" ? "avail" : "sched";
 const week = () => S.weeks[group()];
 
@@ -249,7 +275,11 @@ function subscribe(){
   subs.forEach(off => off()); subs = [];
   const minWeek = [S.weeks.avail, S.weeks.sched].sort()[0];
   const listen = (r, cb) => { const h = r.on("value", s => cb(s.val()), err => { console.error(err); showError(); }); subs.push(() => r.off("value", h)); };
-  listen(ref("players"), v => { S.players = v || {}; S.loaded.players = true; render(); });
+  listen(ref("players"), v => {
+    S.players = v || {}; S.loaded.players = true;
+    if (S.me && (!S.players[S.me] || S.players[S.me].pinHash !== S.meKey)) { const had = !!S.players[S.me]; logout(); if (had) toast("Tu PIN cambió. Entra de nuevo con el PIN nuevo."); }
+    render();
+  });
   listen(ref("avail").orderByKey().startAt(minWeek), v => { S.avail = v || {}; S.loaded.avail = true; render(); });
   listen(ref("games").orderByKey().startAt(minWeek), v => { S.games = v || {}; S.loaded.games = true; render(); });
   subscribe.min = minWeek;
@@ -282,13 +312,27 @@ function weekTitle(w){ const s = parse(w), e = addDays(s,6);
 function weekTag(w){ return w === thisWeek ? "Esta semana" : w === nextWeek ? "Próxima semana" : w < thisWeek ? "Semana pasada" : "Semana futura"; }
 
 function renderHeader(){
+  clampWeeks();
+  const al = allowed(group()), wk = week();
+  const pv = document.getElementById("prevW"), nx = document.getElementById("nextW");
+  pv.hidden = nx.hidden = !!(al && al.length <= 1);
+  pv.disabled = !!(al && !al.includes(ymd(addDays(parse(wk), -7))));
+  nx.disabled = !!(al && !al.includes(ymd(addDays(parse(wk), 7))));
   const tl = tabsList();
   if (!tl.some(t => t[0] === S.tab)) S.tab = "calendario";
   document.getElementById("tabs").innerHTML = tl.map(([k,l]) => `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${l}</button>`).join("");
   document.getElementById("weekLbl").textContent = weekShort(week());
   document.getElementById("weekTag").textContent = weekTag(week());
-  const sel = document.getElementById("meSel");
-  if (document.activeElement !== sel) sel.innerHTML = `<option value="">— elige tu nombre —</option>` + sortedPlayers().map(([id,p]) => `<option value="${id}" ${id===S.me?"selected":""}>${esc(p.name)}</option>`).join("");
+  const meName = S.me && S.players[S.me]?.name;
+  document.getElementById("who").innerHTML = meName
+    ? `<span>Hola, <b>${esc(meName)}</b></span><button class="btn small" data-who="logout">Salir</button>`
+    : `<button class="btn small primary" data-who="login">Entrar</button>`;
+  const lb = document.getElementById("loginBox"), sel = document.getElementById("loginName");
+  if (S.loginOpen && document.activeElement !== sel) {
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">— tu nombre —</option>` + sortedPlayers().map(([id,p]) => `<option value="${id}" ${id===cur?"selected":""}>${esc(p.name)}</option>`).join("");
+  }
+  if (S.loginOpen !== !lb.hidden) { lb.hidden = !S.loginOpen; if (S.loginOpen) setTimeout(()=>sel.focus(), 0); }
   const ab = document.getElementById("adminBtn");
   ab.textContent = S.admin ? "Salir de admin" : "Admin";
   ab.setAttribute("aria-pressed", S.admin);
@@ -300,9 +344,16 @@ function renderHeader(){
 // 1. Jugadores (admin)
 function vPlayers(){
   const list = sortedPlayers();
-  return `<section class="panel">
-    <h2>Integrantes del grupo</h2>
-    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Los nombres aparecen en el selector “Soy” y en las canchas.</p>
+  const np = Object.entries(S.newPins).filter(([id]) => S.players[id]);
+  const noPin = list.filter(([,p]) => !p.pinHash).length;
+  return `${np.length ? `<section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>PINs nuevos</h2><button class="btn small" data-act="hidePins">Ocultar</button></div>
+    <p class="lead">Envía a cada jugador su PIN por mensaje privado. Solo se muestran ahora; si alguien lo pierde, genera uno nuevo con el botón PIN.</p>
+    <div class="pinlist">${np.map(([id,pin]) => `<div class="av"><span>${esc(name(id))}</span><span class="row"><b>${pin}</b><button class="btn small" data-act="copyPin" data-id="${id}">Copiar mensaje</button></span></div>`).join("")}</div>
+  </section>` : ""}
+  <section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>Integrantes del grupo</h2>${noPin ? `<button class="btn small" data-act="genMissing">Generar PIN a ${noPin} sin PIN</button>` : ""}</div>
+    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Cada jugador entra con su nombre y su PIN. Al agregar a alguien se le genera un PIN; envíaselo por mensaje privado.</p>
     <form class="row" id="addForm" style="margin-top:12px">
       <input type="text" id="newName" placeholder="Nombre del jugador" maxlength="40" style="flex:1;min-width:180px" autocomplete="off">
       <button class="btn primary" type="submit">Agregar jugador</button>
@@ -311,8 +362,8 @@ function vPlayers(){
       ? `<div class="pitem"><input type="text" id="ed_${id}" value="${esc(p.name)}" maxlength="40"><button class="btn small primary" data-act="saveName" data-id="${id}">Guardar</button><button class="btn small" data-act="cancelC" aria-label="Cancelar">✕</button></div>`
       : S.confirm===`del:${id}`
       ? `<div class="pitem"><span class="n">¿Eliminar a ${esc(p.name)}?</span><button class="btn small danger" data-act="delPlayer" data-id="${id}">Eliminar</button><button class="btn small" data-act="cancelC">No</button></div>`
-      : `<div class="pitem"><span class="n">${esc(p.name)}</span><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div>`).join("")}</div>`
-      : `<p class="note" style="margin-top:12px">Todavía no hay jugadores. Agrega el primero arriba y luego comparte el enlace de la página con el grupo.</p>`}
+      : `<div class="pitem"><span class="n">${esc(p.name)}</span>${p.pinHash ? "" : `<span class="tag warn">Sin PIN</span>`}<button class="btn small" data-act="genPin" data-id="${id}" title="Generar un PIN nuevo">PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div>`).join("")}</div>`
+      : `<p class="note" style="margin-top:12px">Todavía no hay jugadores. Agrega el primero arriba; cada uno recibe un PIN para entrar.</p>`}
   </section>
   <section class="panel">
     <h2>PIN de administrador</h2>
@@ -327,8 +378,9 @@ function vPlayers(){
 // 2. Disponibilidad
 function vAvail(){
   const w = week();
+  const nextNote = !S.admin && !pollOpen ? `<p class="note" style="margin-top:12px">La próxima semana se habilita el jueves.</p>` : "";
   if (!sortedPlayers().length) return `<div class="panel"><h2>Mi disponibilidad</h2><p class="lead">El administrador aún no ha agregado jugadores.</p></div>`;
-  if (!S.me || !S.players[S.me]) return `<div class="panel"><h2>Mi disponibilidad</h2><p class="lead">Primero elige tu nombre en “Soy”, arriba, para marcar los días que puedes jugar.</p></div>`;
+  if (!S.me || !S.players[S.me]) return `<div class="panel"><h2>Mi disponibilidad</h2><p class="lead">Toca <b>Entrar</b>, arriba, con tu nombre y tu PIN para marcar los días que puedes jugar. Si no tienes PIN, pídelo al administrador.</p></div>`;
   const mine = daysOf(w, S.me);
   return `<section class="panel">
     <h2>¿Qué días puedes jugar?</h2>
@@ -337,7 +389,14 @@ function vAvail(){
       return `<button class="day" data-act="toggleDay" data-d="${d}" aria-pressed="${on}">
         <span class="dn">${DSH[d]}</span><span class="dd">${dt.getDate()} ${MON[dt.getMonth()]}</span>
         <span class="chk">${on ? "✓ Disponible" : "No disponible"}</span>${prog ? `<span class="tag" style="margin-top:4px">Programado</span>`:""}</button>`; }).join("")}</div>
-    <p class="muted" style="margin:12px 0 0">${mine.length ? `Marcaste ${mine.length} día${mine.length===1?"":"s"}.` : "Aún no has marcado días."} Si ya te programaron un día y no puedes ir, cancela desde el Calendario para liberar tu cupo.</p>
+    <p class="muted" style="margin:12px 0 0">${mine.length ? `Marcaste ${mine.length} día${mine.length===1?"":"s"}.` : "Aún no has marcado días."} Si ya te programaron un día y no puedes ir, cancela desde el Calendario para liberar tu cupo.</p>${nextNote}
+  </section>
+  <section class="panel">
+    <h3>Cambiar mi PIN</h3>
+    <form class="row" id="myPinForm" style="margin-top:10px">
+      <input type="password" id="myPin" inputmode="numeric" maxlength="6" placeholder="Nuevo PIN (4 a 6 dígitos)" autocomplete="new-password" style="width:230px" aria-label="Nuevo PIN">
+      <button class="btn" type="submit">Guardar PIN</button>
+    </form>
   </section>`;
 }
 
@@ -411,20 +470,32 @@ function vCal(){
         ? `<span class="confirm"><button class="btn small danger" data-act="leave" data-d="${d}" data-c="${ci}" data-s="${si}">Sí, cancelar</button><button class="btn small" data-act="cancelC">No</button></span>`
         : `<button class="btn small danger" data-act="ask" data-k="${k}">No puedo ir</button>`) : ""}</div>`;
     };
-    return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span></div>
+    const dayWa = courts.length > 0;
+    return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${dayWa ? `<br><button class="btn small" data-act="toggleWaDay" data-d="${d}">${S.waDay===d?"Ocultar texto":"Texto del día"}</button>` : ""}</div>
       ${courts.length ? `<div class="courts">${courts.map((c,ci)=>`<div class="court"><div class="ch"><h3>Cancha ${ci+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
         <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`).join("")}</div>`
-        : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}</article>`;
+        : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
+      ${dayWa && S.waDay===d ? `<div class="daywa"><textarea class="wa" id="waDayText" readonly style="min-height:140px">${esc(waDayText(w,d))}</textarea><div class="row" style="margin-top:8px"><button class="btn primary" data-act="copyWaDay">Copiar texto del día</button></div></div>` : ""}</article>`;
   }).join("");
-  return `<section class="panel"><div class="row" style="justify-content:space-between"><div><h2>Juegos de la semana</h2><p class="lead">Semana ${weekTitle(w)}.${meOk?" Tus juegos aparecen en verde.":" Elige tu nombre en “Soy” para anotarte en un cupo o cancelar."}</p></div>
-    ${anyGames ? `<button class="btn" data-act="toggleWa">${S.wa?"Ocultar texto":"Texto para WhatsApp"}</button>`:""}</div>
-    ${S.wa && anyGames ? `<textarea class="wa" id="waText" readonly>${esc(waText(w))}</textarea><div class="row" style="margin-top:8px"><button class="btn primary" data-act="copyWa">Copiar texto</button></div>`:""}
-  </section>
-  ${anyGames ? `<div class="cal">${days}</div>` : `<div class="note">Aún no hay juegos programados para esta semana.</div>`}`;
+  return `<section class="panel"><h2>Juegos de la semana</h2><p class="lead">Semana ${weekTitle(w)}.${meOk?" Tus juegos aparecen en verde.":" Toca Entrar, arriba, con tu nombre y PIN para anotarte en un cupo o cancelar."}${!S.admin && !pollOpen ? " La próxima semana se habilita el jueves." : ""}</p></section>
+  ${anyGames ? `<div class="cal">${days}</div>` : `<div class="note">Aún no hay juegos programados para esta semana.</div>`}
+  ${anyGames && S.admin ? `<section class="panel"><div class="row" style="justify-content:space-between"><h2>Mensaje de la semana</h2>
+    <button class="btn" data-act="toggleWa">${S.wa?"Ocultar texto":"Texto para WhatsApp"}</button></div>
+    ${S.wa ? `<textarea class="wa" id="waText" readonly>${esc(waText(w))}</textarea><div class="row" style="margin-top:8px"><button class="btn primary" data-act="copyWa">Copiar texto</button></div>`:""}
+  </section>` : ""}`;
 }
 function fmtTime(t){ const [h,m] = t.split(":").map(Number); return `${((h+11)%12)+1}:${pad(m)} ${h>=12?"pm":"am"}`; }
+function dayLines(w,d){
+  return courtsOf(w,d).map((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "_cupo abierto_";
+    return `Cancha ${ci+1}${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)} y ${n(1)} vs ${n(2)} y ${n(3)}`; });
+}
+function waDayText(w,d){
+  const dt = dateOf(w,d);
+  const open = courtsOf(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", ...dayLines(w,d), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]].join("\n");
+}
 function waText(w){
-  const out = [`*Juegos de pádel — semana ${weekTitle(w)}*`, ""];
+  const out = [`*PP AM — juegos de la semana ${weekTitle(w)}*`, ""];
   DAYS.forEach((dn,d) => { const courts = courtsOf(w,d); if (!courts.length) return; const dt = dateOf(w,d);
     out.push(`*${dn} ${dt.getDate()}*`);
     courts.forEach((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "_cupo abierto_";
@@ -437,11 +508,35 @@ function waText(w){
 // ---------------- actions ----------------
 document.getElementById("tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-tab]"); if (!b) return;
-  S.tab = b.dataset.tab; S.confirm = null; S.wa = false; ls.set("padel.tab", S.tab); render();
+  S.tab = b.dataset.tab; S.confirm = null; S.wa = false; S.waDay = null; ls.set("padel.tab", S.tab); render();
 });
-document.getElementById("meSel").addEventListener("change", e => { S.me = e.target.value; ls.set("padel.me", S.me); S.confirm = null; e.target.blur(); render(); });
+function logout(){ S.me = ""; S.meKey = ""; ls.set("padel.me", null); ls.set("padel.meKey", null); S.confirm = null; }
+document.getElementById("who").addEventListener("click", e => {
+  const b = e.target.closest("[data-who]"); if (!b) return;
+  if (b.dataset.who === "logout") { logout(); toast("Saliste de tu cuenta."); render(); }
+  else { S.loginOpen = !S.loginOpen; S.pinOpen = false; renderHeader(); }
+});
+document.getElementById("loginCancel").onclick = () => { S.loginOpen = false; document.getElementById("loginPin").value = ""; renderHeader(); };
+document.getElementById("loginForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const pid = document.getElementById("loginName").value, inp = document.getElementById("loginPin"), pin = inp.value.trim();
+  if (Date.now() < S.blockedUntil) { toast("Demasiados intentos. Espera unos segundos."); return; }
+  if (!pid) { toast("Elige tu nombre."); return; }
+  const p = S.players[pid];
+  if (!p?.pinHash) { toast("Aún no tienes PIN. Pídelo al administrador del grupo."); return; }
+  if (playerHash(pid, pin) !== p.pinHash) {
+    inp.value = ""; S.fails++;
+    if (S.fails >= 5) { S.fails = 0; S.blockedUntil = Date.now() + 30000; toast("PIN incorrecto. Espera 30 segundos para intentar de nuevo."); }
+    else toast("PIN incorrecto.");
+    return;
+  }
+  S.fails = 0; S.me = pid; S.meKey = p.pinHash; ls.set("padel.me", pid); ls.set("padel.meKey", p.pinHash);
+  S.loginOpen = false; inp.value = ""; inp.blur(); S.forceRender = true; render(); toast(`Hola, ${p.name}.`);
+});
 function shiftWeek(n){
-  const g = group(); S.weeks[g] = ymd(addDays(parse(S.weeks[g]), 7*n)); S.confirm = null;
+  const g = group(), to = ymd(addDays(parse(S.weeks[g]), 7*n)), al = allowed(g);
+  if (al && !al.includes(to)) return;
+  S.weeks[g] = to; S.confirm = null; S.waDay = null; S.wa = false;
   if (db && S.weeks[g] < subscribe.min) subscribe();
   render();
 }
@@ -451,7 +546,7 @@ document.getElementById("nextW").onclick = () => shiftWeek(1);
 // Admin / PIN
 document.getElementById("adminBtn").onclick = () => {
   if (S.admin) { S.admin = false; ls.set("padel.admin", null); S.tab = "calendario"; toast("Saliste del modo administrador."); render(); return; }
-  S.pinOpen = !S.pinOpen; renderHeader();
+  S.pinOpen = !S.pinOpen; S.loginOpen = false; renderHeader();
 };
 document.getElementById("pinCancel").onclick = () => { S.pinOpen = false; document.getElementById("pinInput").value = ""; renderHeader(); };
 document.getElementById("pinForm0").addEventListener("submit", e => {
@@ -470,7 +565,16 @@ main.addEventListener("submit", async e => {
     if (!n) return;
     if (sortedPlayers().some(([,p]) => p.name.toLowerCase() === n.toLowerCase())) { toast(`${n} ya está en la lista.`); return; }
     inp.value = "";
-    ref("players").push({ name: n, createdAt: Date.now() }).then(() => toast(`${n} agregado.`), fail);
+    const r = ref("players").push(), pin = newPin();
+    S.newPins[r.key] = pin;
+    r.set({ name: n, createdAt: Date.now(), pinHash: playerHash(r.key, pin) }).then(() => toast(`${n} agregado. Su PIN es ${pin}.`), fail);
+  }
+  if (e.target.id === "myPinForm") {
+    const inp = document.getElementById("myPin"), pin = inp.value.trim();
+    if (!/^\d{4,6}$/.test(pin)) { toast("El PIN debe tener de 4 a 6 dígitos."); return; }
+    const h = playerHash(S.me, pin); inp.value = ""; inp.blur();
+    S.meKey = h; ls.set("padel.meKey", h);
+    ref(`players/${S.me}/pinHash`).set(h).then(() => toast("Tu PIN quedó actualizado."), fail);
   }
   if (e.target.id === "pinForm") {
     const inp = document.getElementById("newPin"); const p = inp.value.trim();
@@ -508,6 +612,18 @@ main.addEventListener("click", async e => {
     case "toggleDay": {
       const on = daysOf(w, S.me).includes(d);
       ref(`avail/${w}/${S.me}/d${d}`).set(on ? null : true).catch(fail); break; }
+    case "genPin": {
+      const id = b.dataset.id, pin = newPin(); S.newPins[id] = pin;
+      ref(`players/${id}/pinHash`).set(playerHash(id, pin)).then(() => toast(`PIN nuevo para ${name(id)}: ${pin}`), fail); break; }
+    case "genMissing": {
+      const upd = {};
+      sortedPlayers().filter(([,p]) => !p.pinHash).forEach(([id]) => { const pin = newPin(); S.newPins[id] = pin; upd[`${id}/pinHash`] = playerHash(id, pin); });
+      ref("players").update(upd).then(() => toast("PINs generados."), fail); break; }
+    case "hidePins": S.newPins = {}; render(); break;
+    case "copyPin": {
+      const id = b.dataset.id, msg = `Hola ${name(id)}, para PP AM entra en ${location.href.split("#")[0]} con tu nombre y este PIN: ${S.newPins[id]}. Puedes cambiarlo en "Mi disponibilidad".`;
+      try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado."); } catch { toast(msg); }
+      break; }
     case "pickDay": S.schedDay = d; S.confirm = null; render(); break;
     case "setCourts": {
       const n = +b.dataset.n, courts = courtsOf(w, S.schedDay);
@@ -515,7 +631,7 @@ main.addEventListener("click", async e => {
       if (losing && !b.dataset.force) { S.confirm = "shrink"; S.shrinkTo = n; render(); return; }
       S.confirm = null;
       const next = courts.slice(0, n);
-      while (next.length < n) next.push({ time: next[next.length-1]?.time || "", slots: ["","","",""] });
+      while (next.length < n) next.push({ time: next[next.length-1]?.time || DEFAULT_TIME, slots: ["","","",""] });
       ref(`games/${w}/${S.schedDay}/courts`).set(next.length ? next : null).catch(fail); break; }
     case "clearDay":
       ref(`games/${w}/${S.schedDay}/courts`).set(courtsOf(w,S.schedDay).map(c => ({ time: c.time, slots: ["","","",""] }))).catch(fail); break;
@@ -535,10 +651,17 @@ main.addEventListener("click", async e => {
           return cur === me ? "" : undefined;
         });
         if (!res.committed) toast(a === "join" ? "Ese cupo ya fue tomado por otro jugador." : "Ese lugar ya no está a tu nombre.");
-        else toast(a === "join" ? "Te anotaste. ¡Nos vemos en la cancha!" : "Cancelado. Tu cupo quedó abierto para otro jugador.");
+        else if (a === "join") toast("Te anotaste. ¡Nos vemos en la cancha!");
+        else { S.waDay = d; toast("Cancelado. Copia el mensaje del día para avisar al grupo que hay un cupo libre."); }
       } catch (err) { fail(err); }
       render(); break; }
     case "toggleWa": S.wa = !S.wa; render(); break;
+    case "toggleWaDay": S.waDay = S.waDay === d ? null : d; render(); break;
+    case "copyWaDay": {
+      const ta = document.getElementById("waDayText");
+      try { await navigator.clipboard.writeText(ta.value); toast("Texto del día copiado."); }
+      catch { ta.focus(); ta.select(); toast("Selecciona y copia el texto manualmente."); }
+      break; }
     case "copyWa": {
       const ta = document.getElementById("waText");
       try { await navigator.clipboard.writeText(ta.value); toast("Texto copiado. Pégalo en el grupo de WhatsApp."); }
