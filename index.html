@@ -91,14 +91,22 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 @media (max-width:620px){.pitem{flex-wrap:wrap}.pitem .acts{width:100%;justify-content:flex-start}.phead span:last-child{display:none}}
 
 /* availability */
-.days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:14px}
-.day{display:grid;gap:2px;justify-items:center;padding:14px 4px;border:2px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;color:var(--ink);font:inherit}
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
+.day{display:grid;gap:2px;justify-items:center;min-width:0;text-align:center;padding:14px 4px;border:2px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;color:var(--ink);font:inherit}
 .day .dn{font-family:var(--display);font-weight:700;font-size:20px;text-transform:uppercase}
 .day .dd{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .day .chk{font-size:12px;font-weight:600;margin-top:4px;color:var(--muted)}
 .day[aria-pressed="true"]{border-color:var(--court);background:var(--court-soft)}
 .day[aria-pressed="true"] .chk{color:var(--court)}
-@media (max-width:620px){.days{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:620px){
+  .days{grid-template-columns:minmax(0,1fr);gap:6px}
+  .day{display:flex;align-items:center;gap:10px;padding:12px 14px;text-align:left}
+  .day .dn{width:2.6em;font-size:20px}
+  .day .dd{flex:1;font-size:14px;white-space:nowrap}
+  .day .chk{white-space:nowrap}
+  .day .chk{margin-top:0;font-size:14px}
+  .day .tag{margin-top:0!important}
+}
 
 /* schedule */
 .daytabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
@@ -503,7 +511,7 @@ function vCal(){
         : `<button class="btn small danger" data-act="ask" data-k="${k}">No puedo ir</button>`) : ""}</div>`;
     };
     const dayWa = courts.length > 0;
-    return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${dayWa ? `<br><button class="btn small" data-act="toggleWaDay" data-d="${d}">${S.waDay===d?"Ocultar texto":"Texto del día"}</button>` : ""}</div>
+    return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${dayWa ? `<br><button class="btn small" data-act="toggleWaDay" data-d="${d}">${S.waDay===d?"Ocultar texto":"Mensaje para WhatsApp"}</button>` : ""}</div>
       ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci; return `<div class="court"><div class="ch"><h3>Cancha ${n+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
         <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`; }).join("")}</div>`
         : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
@@ -680,7 +688,7 @@ main.addEventListener("click", async e => {
         });
         if (!res.committed) toast(a === "join" ? "Ese cupo ya fue tomado por otro jugador." : "Ese lugar ya no está a tu nombre.");
         else if (a === "join") toast("Te anotaste. ¡Nos vemos en la cancha!");
-        else { S.waDay = d; toast("Cancelado. Copia el mensaje del día para avisar al grupo que hay un cupo libre."); }
+        else { S.waDay = d; toast("Cancelado. Copia el mensaje de WhatsApp para avisar al grupo que hay un cupo libre."); }
       } catch (err) { fail(err); }
       render(); break; }
     case "toggleWa": S.wa = !S.wa; render(); break;
