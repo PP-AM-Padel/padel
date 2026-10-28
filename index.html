@@ -165,6 +165,8 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .notify.ok{background:var(--me-bg);color:var(--ink)}
 .wa-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border-radius:99px;background:var(--wa);color:#fff;text-decoration:none;font:600 14px var(--body);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .wa-btn.wide{width:auto;padding:0 14px 0 10px}
+.wa-btn.small{height:30px;padding:0 10px 0 8px;font-size:13px}
+.wa-btn.small svg{width:16px;height:16px}
 .wa-btn:hover{filter:brightness(.95)}
 .dl .wa-btn{margin-top:8px}
 .dl .btn{margin-top:8px}
@@ -404,7 +406,7 @@ function vPlayers(){
   const known = (id,p) => S.newPins[id] && p.pinHash && playerHash(id,S.newPins[id]) === p.pinHash;
   return `<section class="panel">
     <div class="row" style="justify-content:space-between"><h2>Integrantes del grupo</h2>${noPin ? `<button class="btn small" data-act="genMissing">Generar PIN a ${noPin} sin PIN</button>` : ""}</div>
-    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Al agregar a alguien se le asigna un PIN automáticamente; usa <b>Enviar PIN</b> para copiar el mensaje y mandárselo por privado.</p>
+    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Al agregar a alguien se le asigna un PIN automáticamente; usa <b>Enviar PIN</b> para mandárselo por WhatsApp.</p>
     <form class="row" id="addForm" style="margin-top:12px">
       <input type="text" id="newName" placeholder="Nombre del jugador" maxlength="40" style="flex:1;min-width:180px" autocomplete="off">
       <button class="btn primary" type="submit">Agregar jugador</button>
@@ -413,7 +415,7 @@ function vPlayers(){
       ? `<div class="pitem"><input type="text" id="ed_${id}" value="${esc(p.name)}" maxlength="40"><div class="acts"><button class="btn small primary" data-act="saveName" data-id="${id}">Guardar</button><button class="btn small" data-act="cancelC">Cancelar</button></div></div>`
       : S.confirm===`del:${id}`
       ? `<div class="pitem"><span class="n">¿Eliminar a ${esc(p.name)}?</span><div class="acts"><button class="btn small danger" data-act="delPlayer" data-id="${id}">Eliminar</button><button class="btn small" data-act="cancelC">No</button></div></div>`
-      : `<div class="pitem"><span class="n">${esc(p.name)}</span>${pinCell(id,p)}<div class="acts">${known(id,p) ? `<button class="btn small" data-act="copyPin" data-id="${id}" title="Copiar el mensaje con su PIN">Enviar PIN</button>` : ""}<button class="btn small" data-act="genPin" data-id="${id}">Nuevo PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div></div>`).join("")}</div>`
+      : `<div class="pitem"><span class="n">${esc(p.name)}</span>${pinCell(id,p)}<div class="acts">${known(id,p) ? waBtn(pinMsg(id), "Enviar PIN", `Enviar el PIN a ${p.name} por WhatsApp`, "small") : ""}<button class="btn small" data-act="genPin" data-id="${id}">Nuevo PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div></div>`).join("")}</div>`
       : `<p class="note" style="margin-top:12px">Todavía no hay jugadores. Agrega el primero arriba; cada uno recibe un PIN para entrar.</p>`}
   </section>
   <section class="panel">
@@ -542,7 +544,9 @@ function dayLines(w,d){
 }
 const WA_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M3.6 20.4l1.25-4.1a8.4 8.4 0 1 1 3.1 3z"/><path fill="currentColor" d="M9.1 7.4c.3 0 .5.1.7.5l.8 1.8c.1.3 0 .5-.1.7l-.6.7c.6 1.2 1.6 2.2 2.9 2.9l.7-.6c.2-.2.4-.2.7-.1l1.8.8c.4.2.5.4.4.8-.2 1-1 1.7-2.1 1.7-3.1 0-6.3-3.2-6.3-6.3 0-1.1.6-1.9 1.6-2.1z"/></svg>`;
 const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
-const waBtn = (text, label, title) => `<a class="wa-btn${label ? " wide" : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
+const pageUrl = () => location.href.split("#")[0].split("?")[0];
+const pinMsg = id => `Hola ${name(id)}, para PP AM entra en ${pageUrl()} con tu nombre y este PIN: *${S.newPins[id]}*. Puedes cambiarlo en la pestaña Disponibilidad.`;
+const waBtn = (text, label, title, size) => `<a class="wa-btn${label ? " wide" : ""}${size ? " " + size : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
 function notifyMsg(w,d){
   const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
   if (S.notifyKind === "join") return open ? `Te anotaste. Avisa al grupo; todavía ${open===1?"queda 1 cupo":`quedan ${open} cupos`} ese día.` : "Te anotaste y ya no quedan cupos ese día. Avisa al grupo que el juego está completo.";
@@ -551,13 +555,13 @@ function notifyMsg(w,d){
 function waDayText(w,d){
   const dt = dateOf(w,d);
   const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
-  return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", dayLines(w,d).join("\n\n"), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]].join("\n");
+  return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", dayLines(w,d).join("\n\n"), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + pageUrl()].join("\n");
 }
 function waText(w){
   const out = [`*PP AM — juegos de la semana ${weekTitle(w)}*`, ""];
   DAYS.forEach((dn,d) => { if (!visCourts(w,d).length) return; const dt = dateOf(w,d);
     out.push(`*${dn} ${dt.getDate()}*`, dayLines(w,d).join("\n\n"), ""); });
-  out.push("Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]);
+  out.push("Para anotarte en un cupo abierto o cancelar: " + pageUrl());
   return out.join("\n").trim();
 }
 
@@ -677,7 +681,7 @@ main.addEventListener("click", async e => {
       sortedPlayers().filter(([,p]) => !p.pinHash).forEach(([id]) => { const pin = newPin(); S.newPins[id] = pin; upd[`${id}/pinHash`] = playerHash(id, pin); });
       savePins(); ref("players").update(upd).then(() => toast("PINs generados."), fail); break; }
     case "copyPin": {
-      const id = b.dataset.id, msg = `Hola ${name(id)}, para PP AM entra en ${location.href.split("#")[0]} con tu nombre y este PIN: ${S.newPins[id]}. Puedes cambiarlo en la pestaña Disponibilidad.`;
+      const id = b.dataset.id, msg = `Hola ${name(id)}, para PP AM entra en ${pageUrl()} con tu nombre y este PIN: ${S.newPins[id]}. Puedes cambiarlo en la pestaña Disponibilidad.`;
       try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado."); } catch { toast(msg); }
       break; }
     case "pickDay": S.schedDay = d; S.confirm = null; render(); break;
