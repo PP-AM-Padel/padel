@@ -123,6 +123,7 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;font-weight:500;font-size:14px;background:var(--open-bg);color:var(--open-ink);border:1px dashed var(--open-line)}
 .chip.as{background:var(--court-soft);color:var(--ink);border:1px solid transparent}
+.chip .ord{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;background:var(--surface);color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 .chip small{font-size:11px;font-weight:700;color:var(--court)}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:99px;margin-right:4px;vertical-align:-1px}
@@ -304,7 +305,11 @@ function toast(msg){ const t = document.getElementById("toast"); t.textContent =
 const sortedPlayers = () => Object.entries(S.players).filter(([,p]) => p && p.name).sort((a,b)=> a[1].name.localeCompare(b[1].name,"es"));
 const name = id => S.players[id]?.name || "(jugador eliminado)";
 const daysOf = (w, pid) => { const o = S.avail[w]?.[pid] || {}; return [0,1,2,3,4,5,6].filter(d => o["d"+d]); };
-const availOn = (w,d) => sortedPlayers().filter(([id]) => daysOf(w,id).includes(d)).map(([id])=>id);
+// Orden de llegada: cada día marcado guarda la hora del servidor. Marcas antiguas (true) van al final.
+const markedAt = (w,pid,d) => { const v = S.avail[w]?.[pid]?.["d"+d]; return typeof v === "number" ? v : Infinity; };
+const availOn = (w,d) => sortedPlayers().filter(([id]) => daysOf(w,id).includes(d)).map(([id])=>id)
+  .sort((a,b) => markedAt(w,a,d) - markedAt(w,b,d));
+function fmtStamp(t){ if (!isFinite(t)) return "hora no registrada"; const x = new Date(t); return `${DSH[(x.getDay()+6)%7]} ${x.getDate()} ${MON[x.getMonth()]}, ${fmtTime(pad(x.getHours())+":"+pad(x.getMinutes()))}`; }
 const courtsOf = (w,d) => normCourts(S.games[w]?.[d]?.courts);
 // Canchas visibles para los jugadores: solo las que tienen al menos un jugador. ci = índice real.
 const visCourts = (w,d) => courtsOf(w,d).map((c,ci) => ({ ...c, ci })).filter(c => c.slots.some(Boolean));
@@ -473,8 +478,8 @@ function vSched(){
     <section class="panel">
       <h3>${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}</h3>
       <p class="muted" style="margin:2px 0 0">${av.length} disponible${av.length===1?"":"s"}${av.length?` · alcanza para ${full} cancha${full===1?"":"s"} completa${full===1?"":"s"}`:""}</p>
-      ${av.length ? `<div class="chips">${av.map(id => `<span class="chip ${asg.has(id)?"as":""}">${esc(name(id))}${asg.has(id)?`<small>C${asg.get(id)+1}</small>`:""}</span>`).join("")}</div>
-      <div class="legend"><span><i style="background:var(--open-bg);border:1px dashed var(--open-line)"></i>Sin cancha</span><span><i style="background:var(--court-soft)"></i>Asignado (C = cancha)</span></div>`
+      ${av.length ? `<div class="chips">${av.map((id,i) => `<span class="chip ${asg.has(id)?"as":""}" title="Marcó: ${fmtStamp(markedAt(w,id,d))}"><b class="ord">${i+1}</b>${esc(name(id))}${asg.has(id)?`<small>C${asg.get(id)+1}</small>`:""}</span>`).join("")}</div>
+      <div class="legend"><span><i style="background:var(--open-bg);border:1px dashed var(--open-line)"></i>Sin cancha</span><span><i style="background:var(--court-soft)"></i>Asignado (C = cancha)</span><span>El número es el orden en que marcaron</span></div>`
         : `<p class="muted">Nadie ha marcado este día.</p>`}
       <label class="muted" style="margin-top:12px;font-size:14px;display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="showAll" style="margin-top:3px" ${S.showAll?"checked":""}> Mostrar también a quienes no marcaron este día</label>
     </section>
@@ -483,9 +488,9 @@ function vSched(){
         <div class="row"><span style="font-weight:600">Canchas:</span>
           <div class="seg" role="group" aria-label="Número de canchas">${[0,1,2,3,4].map(n=>`<button data-act="setCourts" data-n="${n}" aria-pressed="${courts.length===n}">${n===0?"Ninguna":n}</button>`).join("")}</div>
         </div>
-        ${courts.length ? `<div class="row">
-          <button class="btn small" data-act="autofill" ${unassigned.length && openCount ? "" : "disabled"}>Llenar cupos con disponibles</button>
-          <button class="btn small" data-act="clearDay">Vaciar canchas</button></div>` : ""}
+        <div class="row">
+          <button class="btn small primary" data-act="autofill" ${unassigned.length && (openCount || courts.length < 4) ? "" : "disabled"}>Armar en orden de llegada</button>
+          ${courts.length ? `<button class="btn small" data-act="clearDay">Vaciar canchas</button>` : ""}</div>
       </div>
       ${S.confirm === "shrink" ? `<div class="note warn confirm" style="margin-top:10px">Al quitar canchas se liberan los jugadores asignados en ellas. <button class="btn small danger" data-act="setCourts" data-n="${S.shrinkTo}" data-force="1">Quitar canchas</button><button class="btn small" data-act="cancelC">Cancelar</button></div>` : ""}
       ${courts.length ? `<div class="courts">${courts.map((c,ci)=>`
@@ -662,7 +667,8 @@ main.addEventListener("click", async e => {
       ref(`players/${id}`).remove().then(() => toast(`${n} eliminado.`), fail); break; }
     case "toggleDay": {
       const on = daysOf(w, S.me).includes(d);
-      ref(`avail/${w}/${S.me}/d${d}`).set(on ? null : true).catch(fail); break; }
+      const stamp = firebase.database.ServerValue ? firebase.database.ServerValue.TIMESTAMP : Date.now();
+      ref(`avail/${w}/${S.me}/d${d}`).set(on ? null : stamp).catch(fail); break; }
     case "genPin": {
       const id = b.dataset.id, pin = newPin(); S.newPins[id] = pin; savePins();
       ref(`players/${id}/pinHash`).set(playerHash(id, pin)).then(() => toast(`PIN nuevo para ${name(id)}: ${pin}`), fail); break; }
@@ -686,11 +692,13 @@ main.addEventListener("click", async e => {
     case "clearDay":
       ref(`games/${w}/${S.schedDay}/courts`).set(courtsOf(w,S.schedDay).map(c => ({ time: c.time, slots: ["","","",""] }))).catch(fail); break;
     case "autofill": {
+      // Llena por orden de llegada: los primeros 4 a la cancha 1, los siguientes a la 2, etc. Agrega canchas si hacen falta (máx. 4).
       const day = S.schedDay, asg = assignedOn(w,day), free = availOn(w,day).filter(id => !asg.has(id));
-      for (let i = free.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [free[i],free[j]] = [free[j],free[i]]; }
-      const updates = {};
-      courtsOf(w,day).forEach((c,cx) => c.slots.forEach((s,sx) => { if (!s && free.length) updates[`${cx}/slots/${sx}`] = free.shift(); }));
-      ref(`games/${w}/${day}/courts`).update(updates).catch(fail); break; }
+      const courts = courtsOf(w,day);
+      let open = courts.reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+      while (open < free.length && courts.length < 4) { courts.push({ time: courts[courts.length-1]?.time || DEFAULT_TIME, slots: ["","","",""] }); open += 4; }
+      courts.forEach(c => c.slots = c.slots.map(x => x || free.shift() || ""));
+      ref(`games/${w}/${day}/courts`).set(courts).then(() => toast(free.length ? `Canchas llenas. ${free.length} sin lugar (máximo 4 canchas).` : "Canchas armadas en orden de llegada."), fail); break; }
     case "join": case "leave": {
       S.confirm = null;
       if (a === "join" && assignedOn(w,d).has(S.me)) { toast("Ya estás en un juego ese día."); render(); return; }
