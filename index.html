@@ -538,7 +538,7 @@ function vCal(){
 function fmtTime(t){ const [h,m] = t.split(":").map(Number); return `${((h+11)%12)+1}:${pad(m)} ${h>=12?"pm":"am"}`; }
 function dayLines(w,d){
   return visCourts(w,d).map((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "*Cupo abierto*";
-    return `Cancha ${ci+1}${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)}/${n(1)} vs ${n(2)}/${n(3)}`; });
+    return `*Cancha ${ci+1}*${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)}/${n(1)} vs ${n(2)}/${n(3)}`; });
 }
 const WA_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M3.6 20.4l1.25-4.1a8.4 8.4 0 1 1 3.1 3z"/><path fill="currentColor" d="M9.1 7.4c.3 0 .5.1.7.5l.8 1.8c.1.3 0 .5-.1.7l-.6.7c.6 1.2 1.6 2.2 2.9 2.9l.7-.6c.2-.2.4-.2.7-.1l1.8.8c.4.2.5.4.4.8-.2 1-1 1.7-2.1 1.7-3.1 0-6.3-3.2-6.3-6.3 0-1.1.6-1.9 1.6-2.1z"/></svg>`;
 const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
@@ -551,12 +551,12 @@ function notifyMsg(w,d){
 function waDayText(w,d){
   const dt = dateOf(w,d);
   const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
-  return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", ...dayLines(w,d), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]].join("\n");
+  return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", dayLines(w,d).join("\n\n"), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]].join("\n");
 }
 function waText(w){
   const out = [`*PP AM — juegos de la semana ${weekTitle(w)}*`, ""];
   DAYS.forEach((dn,d) => { if (!visCourts(w,d).length) return; const dt = dateOf(w,d);
-    out.push(`*${dn} ${dt.getDate()}*`, ...dayLines(w,d), ""); });
+    out.push(`*${dn} ${dt.getDate()}*`, dayLines(w,d).join("\n\n"), ""); });
   out.push("Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]);
   return out.join("\n").trim();
 }
