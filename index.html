@@ -76,10 +76,18 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .tag.warn{background:var(--danger-soft);color:var(--danger)}
 
 /* players */
-.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:12px}
-.pitem{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
-.pitem .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.plist{display:grid;margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.phead{display:flex;gap:12px;padding:8px 12px;background:var(--bg);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.phead span:first-child{flex:1}
+.phead span:last-child{width:9ch;margin-right:auto}
+.pitem{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface)}
+.pitem+.pitem{border-top:1px solid var(--line)}
+.pitem .n{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500}
+.pitem .pin,.pitem .tag{width:9ch;font-variant-numeric:tabular-nums;letter-spacing:.05em}
+.pitem .tag{width:auto}
 .pitem input{flex:1}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:620px){.pitem{flex-wrap:wrap}.pitem .acts{width:100%;justify-content:flex-start}.phead span:last-child{display:none}}
 
 /* availability */
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:14px}
@@ -225,6 +233,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const ls = { get(k){ try{return localStorage.getItem(k)}catch{return null} }, set(k,v){ try{ v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v)}catch{} } };
 const hash = s => { let h = 5381; for (const c of "padel:" + s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h.toString(36); };
 const playerHash = (pid, pin) => hash(pid + ":" + pin);
+function savePins(){ ls.set("padel.pins", JSON.stringify(S.newPins)); }
 const newPin = () => String(Math.floor(1000 + Math.random() * 9000));
 const toArr = x => Array.isArray(x) ? x : (x && typeof x === "object") ? Object.keys(x).sort((a,b)=>a-b).map(k => x[k]) : [];
 const DEFAULT_TIME = "06:00";
@@ -239,7 +248,7 @@ const defaultSched = (today.getDay() === 6 || today.getDay() === 0) ? nextWeek :
 const S = {
   weeks: { avail: [4,5,6,0].includes(today.getDay()) ? nextWeek : thisWeek, sched: defaultSched },
   players: {}, avail: {}, games: {}, loaded: { players:false, avail:false, games:false },
-  me: ls.get("padel.me") || "", meKey: ls.get("padel.meKey") || "", loginOpen: false, newPins: {}, fails: 0, blockedUntil: 0, admin: ls.get("padel.admin") === "1", tab: ls.get("padel.tab") || "calendario",
+  me: ls.get("padel.me") || "", meKey: ls.get("padel.meKey") || "", loginOpen: false, newPins: (() => { try { return JSON.parse(ls.get("padel.pins") || "{}"); } catch { return {}; } })(), fails: 0, blockedUntil: 0, admin: ls.get("padel.admin") === "1", tab: ls.get("padel.tab") || "calendario",
   schedDay: Math.max(0, (today.getDay()+6)%7), showAll: false, confirm: null, wa: false,
   pinHash: hash(DEFAULT_PIN), online: true, pinOpen: false
 };
@@ -344,25 +353,26 @@ function renderHeader(){
 // 1. Jugadores (admin)
 function vPlayers(){
   const list = sortedPlayers();
-  const np = Object.entries(S.newPins).filter(([id]) => S.players[id]);
   const noPin = list.filter(([,p]) => !p.pinHash).length;
-  return `${np.length ? `<section class="panel">
-    <div class="row" style="justify-content:space-between"><h2>PINs nuevos</h2><button class="btn small" data-act="hidePins">Ocultar</button></div>
-    <p class="lead">Envía a cada jugador su PIN por mensaje privado. Solo se muestran ahora; si alguien lo pierde, genera uno nuevo con el botón PIN.</p>
-    <div class="pinlist">${np.map(([id,pin]) => `<div class="av"><span>${esc(name(id))}</span><span class="row"><b>${pin}</b><button class="btn small" data-act="copyPin" data-id="${id}">Copiar mensaje</button></span></div>`).join("")}</div>
-  </section>` : ""}
-  <section class="panel">
+  const pinCell = (id,p) => {
+    if (!p.pinHash) return `<span class="tag warn">Sin PIN</span>`;
+    const k = S.newPins[id];
+    if (k && playerHash(id,k) === p.pinHash) return `<b class="pin">${k}</b>`;
+    return `<span class="pin muted" title="${k ? "El jugador cambió su PIN" : "Generado en otro dispositivo"}">${k ? "Lo cambió" : "••••"}</span>`;
+  };
+  const known = (id,p) => S.newPins[id] && p.pinHash && playerHash(id,S.newPins[id]) === p.pinHash;
+  return `<section class="panel">
     <div class="row" style="justify-content:space-between"><h2>Integrantes del grupo</h2>${noPin ? `<button class="btn small" data-act="genMissing">Generar PIN a ${noPin} sin PIN</button>` : ""}</div>
-    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Cada jugador entra con su nombre y su PIN. Al agregar a alguien se le genera un PIN; envíaselo por mensaje privado.</p>
+    <p class="lead">${list.length} jugador${list.length===1?"":"es"}. Al agregar a alguien se le asigna un PIN automáticamente; usa <b>Enviar PIN</b> para copiar el mensaje y mandárselo por privado.</p>
     <form class="row" id="addForm" style="margin-top:12px">
       <input type="text" id="newName" placeholder="Nombre del jugador" maxlength="40" style="flex:1;min-width:180px" autocomplete="off">
       <button class="btn primary" type="submit">Agregar jugador</button>
     </form>
     ${list.length ? `<div class="plist">${list.map(([id,p]) => S.confirm===`edit:${id}`
-      ? `<div class="pitem"><input type="text" id="ed_${id}" value="${esc(p.name)}" maxlength="40"><button class="btn small primary" data-act="saveName" data-id="${id}">Guardar</button><button class="btn small" data-act="cancelC" aria-label="Cancelar">✕</button></div>`
+      ? `<div class="pitem"><input type="text" id="ed_${id}" value="${esc(p.name)}" maxlength="40"><div class="acts"><button class="btn small primary" data-act="saveName" data-id="${id}">Guardar</button><button class="btn small" data-act="cancelC">Cancelar</button></div></div>`
       : S.confirm===`del:${id}`
-      ? `<div class="pitem"><span class="n">¿Eliminar a ${esc(p.name)}?</span><button class="btn small danger" data-act="delPlayer" data-id="${id}">Eliminar</button><button class="btn small" data-act="cancelC">No</button></div>`
-      : `<div class="pitem"><span class="n">${esc(p.name)}</span>${p.pinHash ? "" : `<span class="tag warn">Sin PIN</span>`}<button class="btn small" data-act="genPin" data-id="${id}" title="Generar un PIN nuevo">PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div>`).join("")}</div>`
+      ? `<div class="pitem"><span class="n">¿Eliminar a ${esc(p.name)}?</span><div class="acts"><button class="btn small danger" data-act="delPlayer" data-id="${id}">Eliminar</button><button class="btn small" data-act="cancelC">No</button></div></div>`
+      : `<div class="pitem"><span class="n">${esc(p.name)}</span>${pinCell(id,p)}<div class="acts">${known(id,p) ? `<button class="btn small" data-act="copyPin" data-id="${id}" title="Copiar el mensaje con su PIN">Enviar PIN</button>` : ""}<button class="btn small" data-act="genPin" data-id="${id}">Nuevo PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div></div>`).join("")}</div>`
       : `<p class="note" style="margin-top:12px">Todavía no hay jugadores. Agrega el primero arriba; cada uno recibe un PIN para entrar.</p>`}
   </section>
   <section class="panel">
@@ -566,7 +576,7 @@ main.addEventListener("submit", async e => {
     if (sortedPlayers().some(([,p]) => p.name.toLowerCase() === n.toLowerCase())) { toast(`${n} ya está en la lista.`); return; }
     inp.value = "";
     const r = ref("players").push(), pin = newPin();
-    S.newPins[r.key] = pin;
+    S.newPins[r.key] = pin; savePins();
     r.set({ name: n, createdAt: Date.now(), pinHash: playerHash(r.key, pin) }).then(() => toast(`${n} agregado. Su PIN es ${pin}.`), fail);
   }
   if (e.target.id === "myPinForm") {
@@ -613,13 +623,12 @@ main.addEventListener("click", async e => {
       const on = daysOf(w, S.me).includes(d);
       ref(`avail/${w}/${S.me}/d${d}`).set(on ? null : true).catch(fail); break; }
     case "genPin": {
-      const id = b.dataset.id, pin = newPin(); S.newPins[id] = pin;
+      const id = b.dataset.id, pin = newPin(); S.newPins[id] = pin; savePins();
       ref(`players/${id}/pinHash`).set(playerHash(id, pin)).then(() => toast(`PIN nuevo para ${name(id)}: ${pin}`), fail); break; }
     case "genMissing": {
       const upd = {};
       sortedPlayers().filter(([,p]) => !p.pinHash).forEach(([id]) => { const pin = newPin(); S.newPins[id] = pin; upd[`${id}/pinHash`] = playerHash(id, pin); });
-      ref("players").update(upd).then(() => toast("PINs generados."), fail); break; }
-    case "hidePins": S.newPins = {}; render(); break;
+      savePins(); ref("players").update(upd).then(() => toast("PINs generados."), fail); break; }
     case "copyPin": {
       const id = b.dataset.id, msg = `Hola ${name(id)}, para PP AM entra en ${location.href.split("#")[0]} con tu nombre y este PIN: ${S.newPins[id]}. Puedes cambiarlo en "Mi disponibilidad".`;
       try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado."); } catch { toast(msg); }
