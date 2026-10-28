@@ -291,6 +291,8 @@ const name = id => S.players[id]?.name || "(jugador eliminado)";
 const daysOf = (w, pid) => { const o = S.avail[w]?.[pid] || {}; return [0,1,2,3,4,5,6].filter(d => o["d"+d]); };
 const availOn = (w,d) => sortedPlayers().filter(([id]) => daysOf(w,id).includes(d)).map(([id])=>id);
 const courtsOf = (w,d) => normCourts(S.games[w]?.[d]?.courts);
+// Canchas visibles para los jugadores: solo las que tienen al menos un jugador. ci = índice real.
+const visCourts = (w,d) => courtsOf(w,d).map((c,ci) => ({ ...c, ci })).filter(c => c.slots.some(Boolean));
 const assignedOn = (w,d) => { const m = new Map(); courtsOf(w,d).forEach((c,ci)=> c.slots.forEach(p => p && m.set(p, ci))); return m; };
 
 // ---------------- Firebase ----------------
@@ -485,9 +487,9 @@ function vSched(){
 // 4. Calendario
 function vCal(){
   const w = week(), meOk = S.me && S.players[S.me];
-  const anyGames = DAYS.some((_,d) => courtsOf(w,d).length);
+  const anyGames = DAYS.some((_,d) => visCourts(w,d).length);
   const days = DAYS.map((dn,d) => {
-    const courts = courtsOf(w,d), dt = dateOf(w,d), iPlay = assignedOn(w,d).has(S.me);
+    const courts = visCourts(w,d), dt = dateOf(w,d), iPlay = assignedOn(w,d).has(S.me);
     const slot = (ci,si,p) => {
       if (!p) {
         const k = `join:${d}:${ci}:${si}`, can = meOk && !iPlay;
@@ -502,8 +504,8 @@ function vCal(){
     };
     const dayWa = courts.length > 0;
     return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${dayWa ? `<br><button class="btn small" data-act="toggleWaDay" data-d="${d}">${S.waDay===d?"Ocultar texto":"Texto del día"}</button>` : ""}</div>
-      ${courts.length ? `<div class="courts">${courts.map((c,ci)=>`<div class="court"><div class="ch"><h3>Cancha ${ci+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
-        <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`).join("")}</div>`
+      ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci; return `<div class="court"><div class="ch"><h3>Cancha ${n+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
+        <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`; }).join("")}</div>`
         : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
       ${dayWa && S.waDay===d ? `<div class="daywa"><textarea class="wa" id="waDayText" readonly style="min-height:140px">${esc(waDayText(w,d))}</textarea><div class="row" style="margin-top:8px"><button class="btn primary" data-act="copyWaDay">Copiar texto del día</button></div></div>` : ""}</article>`;
   }).join("");
@@ -516,21 +518,18 @@ function vCal(){
 }
 function fmtTime(t){ const [h,m] = t.split(":").map(Number); return `${((h+11)%12)+1}:${pad(m)} ${h>=12?"pm":"am"}`; }
 function dayLines(w,d){
-  return courtsOf(w,d).map((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "_cupo abierto_";
+  return visCourts(w,d).map((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "_cupo abierto_";
     return `Cancha ${ci+1}${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)} y ${n(1)} vs ${n(2)} y ${n(3)}`; });
 }
 function waDayText(w,d){
   const dt = dateOf(w,d);
-  const open = courtsOf(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
   return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", ...dayLines(w,d), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]].join("\n");
 }
 function waText(w){
   const out = [`*PP AM — juegos de la semana ${weekTitle(w)}*`, ""];
-  DAYS.forEach((dn,d) => { const courts = courtsOf(w,d); if (!courts.length) return; const dt = dateOf(w,d);
-    out.push(`*${dn} ${dt.getDate()}*`);
-    courts.forEach((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "_cupo abierto_";
-      out.push(`Cancha ${ci+1}${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)} y ${n(1)} vs ${n(2)} y ${n(3)}`); });
-    out.push(""); });
+  DAYS.forEach((dn,d) => { if (!visCourts(w,d).length) return; const dt = dateOf(w,d);
+    out.push(`*${dn} ${dt.getDate()}*`, ...dayLines(w,d), ""); });
   out.push("Para anotarte en un cupo abierto o cancelar: " + location.href.split("#")[0]);
   return out.join("\n").trim();
 }
