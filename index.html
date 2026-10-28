@@ -307,11 +307,11 @@ function toast(msg){ const t = document.getElementById("toast"); t.textContent =
 const sortedPlayers = () => Object.entries(S.players).filter(([,p]) => p && p.name).sort((a,b)=> a[1].name.localeCompare(b[1].name,"es"));
 const name = id => S.players[id]?.name || "(jugador eliminado)";
 const daysOf = (w, pid) => { const o = S.avail[w]?.[pid] || {}; return [0,1,2,3,4,5,6].filter(d => o["d"+d]); };
-// Orden de llegada: cada día marcado guarda la hora del servidor. Marcas antiguas (true) van al final.
-const markedAt = (w,pid,d) => { const v = S.avail[w]?.[pid]?.["d"+d]; return typeof v === "number" ? v : Infinity; };
+// Orden de llegada: cada día marcado guarda la hora del servidor. Marcas antiguas (true, sin hora) se hicieron antes, así que van primero.
+const markedAt = (w,pid,d) => { const v = S.avail[w]?.[pid]?.["d"+d]; return typeof v === "number" ? v : 0; };
 const availOn = (w,d) => sortedPlayers().filter(([id]) => daysOf(w,id).includes(d)).map(([id])=>id)
   .sort((a,b) => markedAt(w,a,d) - markedAt(w,b,d));
-function fmtStamp(t){ if (!isFinite(t)) return "hora no registrada"; const x = new Date(t); return `${DSH[(x.getDay()+6)%7]} ${x.getDate()} ${MON[x.getMonth()]}, ${fmtTime(pad(x.getHours())+":"+pad(x.getMinutes()))}`; }
+function fmtStamp(t){ if (!t || !isFinite(t)) return "hora no registrada"; const x = new Date(t); return `${DSH[(x.getDay()+6)%7]} ${x.getDate()} ${MON[x.getMonth()]}, ${fmtTime(pad(x.getHours())+":"+pad(x.getMinutes()))}`; }
 const courtsOf = (w,d) => normCourts(S.games[w]?.[d]?.courts);
 // Canchas visibles para los jugadores: solo las que tienen al menos un jugador. ci = índice real.
 const visCourts = (w,d) => courtsOf(w,d).map((c,ci) => ({ ...c, ci })).filter(c => c.slots.some(Boolean));
