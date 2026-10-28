@@ -161,6 +161,7 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .daywa{grid-column:1/-1}
 .notify{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:8px;background:var(--open-bg);color:var(--open-ink);font-weight:500}
 .notify span{flex:1 1 200px}
+.notify.ok{background:var(--me-bg);color:var(--ink)}
 .wa-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border-radius:99px;background:var(--wa);color:#fff;text-decoration:none;font:600 14px var(--body);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .wa-btn.wide{width:auto;padding:0 14px 0 10px}
 .wa-btn:hover{filter:brightness(.95)}
@@ -521,7 +522,7 @@ function vCal(){
       ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci; return `<div class="court"><div class="ch"><h3>Cancha ${n+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
         <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`; }).join("")}</div>`
         : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
-      ${dayWa && S.waDay===d ? `<div class="daywa notify"><span>Quedó un cupo libre. Avisa al grupo para que alguien se anote.</span>${waBtn(waDayText(w,d), "Avisar al grupo", "Avisar al grupo por WhatsApp")}<button class="btn small" data-act="dismissNotify">Ahora no</button></div>` : ""}</article>`;
+      ${dayWa && S.waDay===d ? `<div class="daywa notify ${S.notifyKind==="join"?"ok":""}"><span>${notifyMsg(w,d)}</span>${waBtn(waDayText(w,d), "Avisar al grupo", "Avisar al grupo por WhatsApp")}<button class="btn small" data-act="dismissNotify">Ahora no</button></div>` : ""}</article>`;
   }).join("");
   return `<section class="panel"><h2>Juegos de la semana</h2><p class="lead">Semana ${weekTitle(w)}.${meOk?" Tus juegos aparecen en verde.":" Toca Entrar, arriba, con tu nombre y PIN para anotarte en un cupo o cancelar."}${!S.admin && !pollOpen ? " La próxima semana se habilita el jueves." : ""}</p></section>
   ${anyGames ? `<div class="cal">${days}</div>` : `<div class="note">Aún no hay juegos programados para esta semana.</div>`}
@@ -537,6 +538,11 @@ function dayLines(w,d){
 const WA_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M3.6 20.4l1.25-4.1a8.4 8.4 0 1 1 3.1 3z"/><path fill="currentColor" d="M9.1 7.4c.3 0 .5.1.7.5l.8 1.8c.1.3 0 .5-.1.7l-.6.7c.6 1.2 1.6 2.2 2.9 2.9l.7-.6c.2-.2.4-.2.7-.1l1.8.8c.4.2.5.4.4.8-.2 1-1 1.7-2.1 1.7-3.1 0-6.3-3.2-6.3-6.3 0-1.1.6-1.9 1.6-2.1z"/></svg>`;
 const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
 const waBtn = (text, label, title) => `<a class="wa-btn${label ? " wide" : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
+function notifyMsg(w,d){
+  const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  if (S.notifyKind === "join") return open ? `Te anotaste. Avisa al grupo; todavía ${open===1?"queda 1 cupo":`quedan ${open} cupos`} ese día.` : "Te anotaste y ya no quedan cupos ese día. Avisa al grupo que el juego está completo.";
+  return "Quedó un cupo libre. Avisa al grupo para que alguien se anote.";
+}
 function waDayText(w,d){
   const dt = dateOf(w,d);
   const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
@@ -695,8 +701,8 @@ main.addEventListener("click", async e => {
           return cur === me ? "" : undefined;
         });
         if (!res.committed) toast(a === "join" ? "Ese cupo ya fue tomado por otro jugador." : "Ese lugar ya no está a tu nombre.");
-        else if (a === "join") toast("Te anotaste. ¡Nos vemos en la cancha!");
-        else { S.waDay = d; toast("Cancelado. Avisa al grupo por WhatsApp que quedó un cupo libre."); }
+        else if (a === "join") { S.waDay = d; S.notifyKind = "join"; toast("Te anotaste. Avisa al grupo por WhatsApp que tomaste el cupo."); }
+        else { S.waDay = d; S.notifyKind = "leave"; toast("Cancelado. Avisa al grupo por WhatsApp que quedó un cupo libre."); }
       } catch (err) { fail(err); }
       render(); break; }
     case "toggleWa": S.wa = !S.wa; render(); break;
