@@ -136,8 +136,9 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
   .daytabs{gap:4px}
   .daytabs button b{font-size:14px}
   .daytabs button .dn{font-size:18px}
-  nav{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
-  nav button{padding:10px 2px;font-size:13.5px}
+  nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding-bottom:10px;overflow:visible}
+  nav button{padding:9px 6px;font-size:14px;white-space:normal;overflow-wrap:anywhere;line-height:1.2;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+  nav button[aria-selected="true"]{background:var(--court);border-color:var(--court);color:var(--court-ink)}
 }
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;background:var(--surface);color:var(--ink);font:600 15px var(--body);padding:7px 13px;cursor:pointer;font-variant-numeric:tabular-nums}
