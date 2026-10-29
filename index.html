@@ -163,6 +163,16 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .daywa{grid-column:1/-1}
 .notify{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:8px;background:var(--open-bg);color:var(--open-ink);font-weight:500}
 .notify span{flex:1 1 200px}
+.cday.past{opacity:.55}
+.cday.past .dl b{color:var(--muted)}
+.tag.pasttag{margin-top:6px;background:var(--bg);color:var(--muted)}
+.court.cancelled{border-color:var(--line);opacity:.75}
+.court.cancelled .ch{background:var(--muted)}
+.court.cancelled .slot .nm{text-decoration:line-through}
+.tag.cxl{background:var(--danger-soft);color:var(--danger)}
+.cnote{margin:0;padding:6px 10px 8px;font-size:12.5px;color:var(--muted);background:var(--surface)}
+.day.past,.daytabs button.past{opacity:.45}
+.day:disabled{cursor:not-allowed}
 .notify.ok{background:var(--me-bg);color:var(--ink)}
 .wa-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border-radius:99px;background:var(--wa);color:#fff;text-decoration:none;font:600 14px var(--body);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .wa-btn.wide{width:auto;padding:0 14px 0 10px}
@@ -314,6 +324,34 @@ const availOn = (w,d) => sortedPlayers().filter(([id]) => daysOf(w,id).includes(
   .sort((a,b) => markedAt(w,a,d) - markedAt(w,b,d));
 function fmtStamp(t){ if (!t || !isFinite(t)) return "hora no registrada"; const x = new Date(t); return `${DSH[(x.getDay()+6)%7]} ${x.getDate()} ${MON[x.getMonth()]}, ${fmtTime(pad(x.getHours())+":"+pad(x.getMinutes()))}`; }
 const courtsOf = (w,d) => normCourts(S.games[w]?.[d]?.courts);
+// Días pasados y cierre de las 9:00 pm del día anterior.
+const nowYmd = () => ymd(new Date());
+const isPast = (w,d) => ymd(dateOf(w,d)) < nowYmd();
+const deadline = (w,d) => { const x = dateOf(w,d); x.setDate(x.getDate()-1); x.setHours(21,0,0,0); return x.getTime(); };
+const incomplete = c => c.slots.some(Boolean) && c.slots.some(x => !x);
+function cancelledSet(w,d){
+  const cl = S.games[w]?.[d]?.closed;
+  if (cl) return new Set(toArr(cl.cancelled).map(Number));
+  if (Date.now() < deadline(w,d)) return new Set();
+  const out = new Set(); courtsOf(w,d).forEach((c,ci) => incomplete(c) && out.add(ci)); return out;
+}
+const activeAssigned = (w,d) => { const can = cancelledSet(w,d), m = new Map(); courtsOf(w,d).forEach((c,ci) => !can.has(ci) && c.slots.forEach(p => p && m.set(p, ci))); return m; };
+const deadlineLabel = (w,d) => { const x = new Date(deadline(w,d)); return `el ${DAYS[(x.getDay()+6)%7].toLowerCase()} a las 9:00 pm`; };
+// Al pasar las 9 pm, el primer dispositivo que abre la página deja fijas las canchas canceladas.
+const freezing = new Set();
+function freezeClosed(){
+  if (!db) return;
+  Object.entries(S.games || {}).forEach(([w, days]) => Object.entries(days || {}).forEach(([d, g]) => {
+    const key = w + "/" + d;
+    if (!g || g.closed || !toArr(g.courts).length || Date.now() < deadline(w, +d) || freezing.has(key)) return;
+    freezing.add(key);
+    ref(`games/${w}/${d}`).transaction(cur => {
+      if (!cur || cur.closed) return;
+      const can = []; normCourts(cur.courts).forEach((c,ci) => incomplete(c) && can.push(ci));
+      cur.closed = { at: Date.now(), cancelled: can }; return cur;
+    }).catch(e => console.error(e));
+  }));
+}
 // Canchas visibles para los jugadores: solo las que tienen al menos un jugador. ci = índice real.
 const visCourts = (w,d) => courtsOf(w,d).map((c,ci) => ({ ...c, ci })).filter(c => c.slots.some(Boolean));
 const assignedOn = (w,d) => { const m = new Map(); courtsOf(w,d).forEach((c,ci)=> c.slots.forEach(p => p && m.set(p, ci))); return m; };
@@ -334,7 +372,7 @@ function subscribe(){
     render();
   });
   listen(ref("avail").orderByKey().startAt(minWeek), v => { S.avail = v || {}; S.loaded.avail = true; render(); });
-  listen(ref("games").orderByKey().startAt(minWeek), v => { S.games = v || {}; S.loaded.games = true; render(); });
+  listen(ref("games").orderByKey().startAt(minWeek), v => { S.games = v || {}; S.loaded.games = true; render(); freezeClosed(); });
   subscribe.min = minWeek;
 }
 function showError(){ main.innerHTML = `<div class="panel"><h2>No se pudo leer la base de datos</h2><p class="lead">Revisa que la URL de Firebase sea correcta y que las reglas permitan leer y escribir. Luego recarga la página.</p></div>`; }
@@ -440,7 +478,7 @@ function vAvail(){
     <h2>¿Qué días puedes jugar?</h2>
     <p class="lead">Semana ${weekTitle(w)}. Toca cada día para marcarlo o desmarcarlo; se guarda al instante.</p>
     <div class="days">${DAYS.map((dn,d)=> { const on = mine.includes(d); const dt = dateOf(w,d); const prog = assignedOn(w,d).has(S.me);
-      return `<button class="day" data-act="toggleDay" data-d="${d}" aria-pressed="${on}">
+      return `<button class="day ${isPast(w,d)?"past":""}" data-act="toggleDay" data-d="${d}" aria-pressed="${on}" ${isPast(w,d)?"disabled":""}>
         <span class="dn">${DSH[d]}</span><span class="dd">${dt.getDate()} ${MON[dt.getMonth()]}</span>
         <span class="chk">${on ? "✓ Disponible" : "No disponible"}</span>${prog ? `<span class="tag" style="margin-top:4px">Programado</span>`:""}</button>`; }).join("")}</div>
     <p class="muted" style="margin:12px 0 0">${mine.length ? `Marcaste ${mine.length} día${mine.length===1?"":"s"}.` : "Aún no has marcado días."} Si ya te programaron un día y no puedes ir, cancela desde el Calendario para liberar tu cupo.</p>${nextNote}
@@ -475,7 +513,7 @@ function vSched(){
       <span class="muted">${all.length - missing.length} de ${all.length} han marcado disponibilidad</span></div>
     ${missing.length ? `<p class="muted" style="margin:6px 0 0">Sin responder: ${missing.map(([,p])=>esc(p.name)).join(", ")}</p>` : ""}
     <div class="daytabs" style="margin-top:12px">${DAYS.map((_,i)=>{ const x = dateOf(w,i); const n = availOn(w,i).length; const c = courtsOf(w,i).length;
-      return `<button data-act="pickDay" data-d="${i}" aria-selected="${i===d}" aria-label="${DAYS[i]} ${x.getDate()}, ${n} disponibles"><b>${DSH[i]}</b><span class="dn">${x.getDate()}</span><small>${n} disp.</small><small>${c ? `${c} c.` : "&nbsp;"}</small></button>`; }).join("")}</div>
+      return `<button class="${isPast(w,i)?"past":""}" data-act="pickDay" data-d="${i}" aria-selected="${i===d}" aria-label="${DAYS[i]} ${x.getDate()}, ${n} disponibles"><b>${DSH[i]}</b><span class="dn">${x.getDate()}</span><small>${n} disp.</small><small>${c ? `${c} c.` : "&nbsp;"}</small></button>`; }).join("")}</div>
   </section>
   <div class="sgrid">
     <section class="panel">
@@ -495,6 +533,10 @@ function vSched(){
           <button class="btn small primary" data-act="autofill" ${unassigned.length && (openCount || courts.length < 4) ? "" : "disabled"}>Armar en orden de llegada</button>
           ${courts.length ? `<button class="btn small" data-act="clearDay">Vaciar canchas</button>` : ""}</div>
       </div>
+      ${(() => { const cl = S.games[w]?.[d]?.closed, cs = cancelledSet(w,d);
+        if (cl && cs.size) return `<div class="note warn confirm" style="margin-top:10px">Cerrado a las 9:00 pm: ${[...cs].map(i => "Cancha " + (i+1)).join(", ")} cancelada${cs.size>1?"s":""} por no completarse. <button class="btn small" data-act="uncancel">Quitar cancelación</button></div>`;
+        if (!cl && courts.length && Date.now() < deadline(w,d)) return `<p class="muted" style="margin:10px 0 0;font-size:13px">Las canchas que no se llenen se cancelan ${deadlineLabel(w,d)}.</p>`;
+        return ""; })()}
       ${S.confirm === "shrink" ? `<div class="note warn confirm" style="margin-top:10px">Al quitar canchas se liberan los jugadores asignados en ellas. <button class="btn small danger" data-act="setCourts" data-n="${S.shrinkTo}" data-force="1">Quitar canchas</button><button class="btn small" data-act="cancelC">Cancelar</button></div>` : ""}
       ${courts.length ? `<div class="courts">${courts.map((c,ci)=>`
         <div class="court edit"><div class="ch"><h3>Cancha ${ci+1}</h3>
@@ -512,8 +554,10 @@ function vCal(){
   const w = week(), meOk = S.me && S.players[S.me];
   const anyGames = DAYS.some((_,d) => visCourts(w,d).length);
   const days = DAYS.map((dn,d) => {
-    const courts = visCourts(w,d), dt = dateOf(w,d), iPlay = assignedOn(w,d).has(S.me);
+    const courts = visCourts(w,d), dt = dateOf(w,d), iPlay = activeAssigned(w,d).has(S.me);
+    const past = isPast(w,d), can = cancelledSet(w,d), beforeDl = Date.now() < deadline(w,d);
     const slot = (ci,si,p) => {
+      if (past || can.has(ci)) return `<div class="slot ${p ? (p===S.me?"mine":"") : "open"}"><span class="nm">${p ? esc(name(p)) : "—"}</span></div>`;
       if (!p) {
         const k = `join:${d}:${ci}:${si}`, can = meOk && !iPlay;
         return `<div class="slot open"><span class="nm">Cupo abierto</span>${can ? (S.confirm===k
@@ -525,10 +569,11 @@ function vCal(){
         ? `<span class="confirm"><button class="btn small danger" data-act="leave" data-d="${d}" data-c="${ci}" data-s="${si}">Sí, cancelar</button><button class="btn small" data-act="cancelC">No</button></span>`
         : `<button class="btn small danger" data-act="ask" data-k="${k}">No puedo ir</button>`) : ""}</div>`;
     };
-    const dayWa = courts.length > 0;
-    return `<article class="cday ${courts.length?"":"empty"}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${dayWa ? `<br>${waBtn(waDayText(w,d), "", `Enviar los juegos del ${DAYS[d].toLowerCase()} por WhatsApp`)}` : ""}</div>
-      ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci; return `<div class="court"><div class="ch"><h3>Cancha ${n+1}</h3><span class="t">${c.time?fmtTime(c.time):""}</span></div>
-        <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div></div>`; }).join("")}</div>`
+    const dayWa = courts.length > 0 && !past;
+    return `<article class="cday ${courts.length?"":"empty"} ${past?"past":""}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${past ? `<br><span class="tag pasttag">Ya pasó</span>` : ""}${dayWa ? `<br>${waBtn(waDayText(w,d), "", `Enviar los juegos del ${DAYS[d].toLowerCase()} por WhatsApp`)}` : ""}</div>
+      ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci, off = can.has(ci); return `<div class="court ${off?"cancelled":""}"><div class="ch"><h3>Cancha ${n+1}</h3>${off ? `<span class="tag cxl">Cancelada</span>` : `<span class="t">${c.time?fmtTime(c.time):""}</span>`}</div>
+        <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div>
+        ${off ? `<p class="cnote">No se completó antes de las 9:00 pm del día anterior.</p>` : (!past && beforeDl && incomplete(c) ? `<p class="cnote">Si no se llena, se cancela ${deadlineLabel(w,d)}.</p>` : "")}</div>`; }).join("")}</div>`
         : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
       ${dayWa && S.waDay===d ? `<div class="daywa notify ${S.notifyKind==="join"?"ok":""}"><span>${notifyMsg(w,d)}</span>${waBtn(waDayText(w,d), "Avisar al grupo", "Avisar al grupo por WhatsApp")}<button class="btn small" data-act="dismissNotify">Ahora no</button></div>` : ""}</article>`;
   }).join("");
@@ -540,8 +585,10 @@ function vCal(){
 }
 function fmtTime(t){ const [h,m] = t.split(":").map(Number); return `${((h+11)%12)+1}:${pad(m)} ${h>=12?"pm":"am"}`; }
 function dayLines(w,d){
-  return visCourts(w,d).map((c,ci) => { const n = i => c.slots[i] ? name(c.slots[i]) : "*Cupo abierto*";
-    return `*Cancha ${ci+1}*${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)}/${n(1)} vs ${n(2)}/${n(3)}`; });
+  const can = cancelledSet(w,d);
+  return visCourts(w,d).map((c,k) => { const n = i => c.slots[i] ? name(c.slots[i]) : "*Cupo abierto*";
+    if (can.has(c.ci)) return `*Cancha ${k+1}*: *CANCELADA* (no se completó)`;
+    return `*Cancha ${k+1}*${c.time?` (${fmtTime(c.time)})`:""}: ${n(0)}/${n(1)} vs ${n(2)}/${n(3)}`; });
 }
 const WA_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M3.6 20.4l1.25-4.1a8.4 8.4 0 1 1 3.1 3z"/><path fill="currentColor" d="M9.1 7.4c.3 0 .5.1.7.5l.8 1.8c.1.3 0 .5-.1.7l-.6.7c.6 1.2 1.6 2.2 2.9 2.9l.7-.6c.2-.2.4-.2.7-.1l1.8.8c.4.2.5.4.4.8-.2 1-1 1.7-2.1 1.7-3.1 0-6.3-3.2-6.3-6.3 0-1.1.6-1.9 1.6-2.1z"/></svg>`;
 const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
@@ -549,13 +596,13 @@ const pageUrl = () => location.href.split("#")[0].split("?")[0];
 const pinMsg = id => `Hola ${name(id)}, para PP AM entra en ${pageUrl()} con tu nombre y este PIN: *${S.newPins[id]}*. Puedes cambiarlo en la pestaña Disponibilidad.`;
 const waBtn = (text, label, title, size) => `<a class="wa-btn${label ? " wide" : ""}${size ? " " + size : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
 function notifyMsg(w,d){
-  const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  const open = visCourts(w,d).filter(c => !cancelledSet(w,d).has(c.ci)).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
   if (S.notifyKind === "join") return open ? `Te anotaste. Avisa al grupo; todavía ${open===1?"queda 1 cupo":`quedan ${open} cupos`} ese día.` : "Te anotaste y ya no quedan cupos ese día. Avisa al grupo que el juego está completo.";
   return "Quedó un cupo libre. Avisa al grupo para que alguien se anote.";
 }
 function waDayText(w,d){
   const dt = dateOf(w,d);
-  const open = visCourts(w,d).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  const open = visCourts(w,d).filter(c => !cancelledSet(w,d).has(c.ci)).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
   return [`*PP AM — ${DAYS[d]} ${dt.getDate()} de ${MONL[dt.getMonth()]}*`, "", dayLines(w,d).join("\n\n"), "", ...(open ? [`*${open} cupo${open===1?"":"s"} disponible${open===1?"":"s"}*`, ""] : []), "Para anotarte en un cupo abierto o cancelar: " + pageUrl()].join("\n");
 }
 function waText(w){
@@ -706,7 +753,8 @@ main.addEventListener("click", async e => {
       ref(`games/${w}/${day}/courts`).set(courts).then(() => toast(free.length ? `Canchas llenas. ${free.length} sin lugar (máximo 4 canchas).` : "Canchas armadas en orden de llegada."), fail); break; }
     case "join": case "leave": {
       S.confirm = null;
-      if (a === "join" && assignedOn(w,d).has(S.me)) { toast("Ya estás en un juego ese día."); render(); return; }
+      if (isPast(w,d) || cancelledSet(w,d).has(ci)) { toast(isPast(w,d) ? "Ese día ya pasó." : "Ese juego se canceló porque no se completó a las 9:00 pm."); render(); return; }
+      if (a === "join" && activeAssigned(w,d).has(S.me)) { toast("Ya estás en un juego ese día."); render(); return; }
       const me = S.me;
       try {
         const res = await ref(`games/${w}/${d}/courts/${ci}/slots/${si}`).transaction(cur => {
@@ -719,6 +767,7 @@ main.addEventListener("click", async e => {
       } catch (err) { fail(err); }
       render(); break; }
     case "toggleWa": S.wa = !S.wa; render(); break;
+    case "uncancel": ref(`games/${w}/${S.schedDay}/closed/cancelled`).remove().then(() => toast("Cancelación quitada."), fail); break;
     case "dismissNotify": S.waDay = null; render(); break;
     case "copyWaDay": {
       const ta = document.getElementById("waDayText");
@@ -733,6 +782,8 @@ main.addEventListener("click", async e => {
   }
 });
 
+// Cada minuto: aplica el cierre de las 9 pm y refresca los días pasados.
+setInterval(() => { freezeClosed(); render(); }, 60000);
 // Evita mostrar una versión vieja guardada en caché del celular
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
 
