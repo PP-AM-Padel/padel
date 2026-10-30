@@ -175,6 +175,15 @@ input[type=text],input[type=time],input[type=password],select{font:500 15px var(
 .day.past,.daytabs button.past{opacity:.45}
 .day:disabled{cursor:not-allowed}
 .numsel{padding:3px 6px;font:700 15px var(--display);background:var(--surface);color:var(--ink);border:0;border-radius:6px}
+.slot .btn.adm{background:var(--court-soft);border-color:var(--court);color:var(--court)}
+.assign{display:grid;gap:8px;width:100%}
+.assignbox{padding:10px;background:var(--surface);border-top:1px solid var(--line)}
+.slot.picking{outline:3px solid var(--court);outline-offset:-1px}
+.assign select,.assign input,.guestform input{width:100%;font-size:15px;padding:7px 8px;background:var(--surface)}
+.assign .row,.guestform .row{gap:6px;flex-wrap:nowrap}
+.assign .row .btn,.guestform .row .btn{flex:1}
+.assign small{font-size:11.5px}
+.guestform{display:grid;gap:6px}
 .slot.guest .nm{font-style:italic;color:var(--muted)}
 .notify.ok{background:var(--me-bg);color:var(--ink)}
 .wa-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border-radius:99px;background:var(--wa);color:#fff;text-decoration:none;font:600 14px var(--body);box-shadow:0 1px 2px rgba(0,0,0,.15)}
@@ -327,7 +336,10 @@ function toast(msg){ const t = document.getElementById("toast"); t.textContent =
 const sortedPlayers = () => Object.entries(S.players).filter(([,p]) => p && p.name).sort((a,b)=> a[1].name.localeCompare(b[1].name,"es"));
 // Invitado: alguien de fuera del grupo que solo el administrador puede colocar en una cancha.
 const GUEST = "__guest__";
-const name = id => id === GUEST ? "Invitado" : (S.players[id]?.name || "(jugador eliminado)");
+// Invitado con nombre: se guarda como "guest:Nombre".
+const isGuest = id => id === GUEST || (typeof id === "string" && id.startsWith("guest:"));
+const guestVal = n => "guest:" + n.trim().replace(/\s+/g, " ").slice(0, 30);
+const name = id => id === GUEST ? "Invitado" : isGuest(id) ? `${id.slice(6)} (invitado)` : (S.players[id]?.name || "(jugador eliminado)");
 const daysOf = (w, pid) => { const o = S.avail[w]?.[pid] || {}; return [0,1,2,3,4,5,6].filter(d => o["d"+d]); };
 // Orden de llegada: cada día marcado guarda la hora del servidor. Marcas antiguas (true, sin hora) se hicieron antes, así que van primero.
 const markedAt = (w,pid,d) => { const v = S.avail[w]?.[pid]?.["d"+d]; return typeof v === "number" ? v : 0; };
@@ -400,6 +412,7 @@ function render(){
   const fn = { jugadores: vPlayers, disponibilidad: vAvail, programar: vSched, calendario: vCal }[S.tab];
   main.innerHTML = fn();
 }
+document.addEventListener("input", e => { if (e.target.id === "asgName" || e.target.id === "pgGuestName") S.guestName = e.target.value; });
 document.addEventListener("focusout", () => setTimeout(() => pending && render(), 0));
 
 function tabsList(){
@@ -513,10 +526,11 @@ function vSched(){
   const unassigned = av.filter(id => !asg.has(id));
   const full = Math.floor(av.length/4);
   const slotSel = (ci, si, val) => {
+    if (S.pgGuest === `${w}:${d}:${ci}:${si}`) return `<div class="slot sel guestform"><input type="text" id="pgGuestName" maxlength="30" placeholder="Nombre del invitado" value="${esc(S.guestName||"")}" autocomplete="off"><div class="row"><button class="btn small primary" data-act="savePgGuest" data-c="${ci}" data-s="${si}" data-v="${esc(val)}">Guardar</button><button class="btn small" data-act="cancelPgGuest">Cancelar</button></div></div>`;
     const opts = pool.filter(id => id===val || !asg.has(id));
-    if (val && val !== GUEST && !opts.includes(val)) opts.unshift(val);
+    if (val && !isGuest(val) && !opts.includes(val)) opts.unshift(val);
     return `<div class="slot sel ${val?"":"open"}"><select data-act="setSlot" data-c="${ci}" data-s="${si}" data-v="${val}" aria-label="Cancha ${ci+1}, puesto ${si+1}">
-      <option value="">Cupo abierto</option>${opts.map(id => `<option value="${id}" ${id===val?"selected":""}>${esc(name(id))}${av.includes(id)?"":" (no marcó)"}</option>`).join("")}<option value="${GUEST}" ${val===GUEST?"selected":""}>Invitado</option></select></div>`;
+      <option value="">Cupo abierto</option>${opts.map(id => `<option value="${id}" ${id===val?"selected":""}>${esc(name(id))}${av.includes(id)?"":" (no marcó)"}</option>`).join("")}${val && isGuest(val) && val !== GUEST ? `<option value="${esc(val)}" selected>${esc(name(val))}</option>` : ""}<option value="${GUEST}" ${val===GUEST?"selected":""}>Invitado</option><option value="__guestname__">Invitado con nombre…</option></select></div>`;
   };
   return `
   <section class="panel">
@@ -570,13 +584,14 @@ function vCal(){
     const slot = (ci,si,p) => {
       if (past || can.has(ci)) return `<div class="slot ${p ? (p===S.me?"mine":"") : "open"}"><span class="nm">${p ? esc(name(p)) : "—"}</span></div>`;
       if (!p) {
-        const k = `join:${d}:${ci}:${si}`, can = meOk && !iPlay;
+        const k = `join:${d}:${ci}:${si}`, can = meOk && !iPlay, ak = `${w}:${d}:${ci}:${si}`;
+        if (S.admin && S.assign === ak) return `<div class="slot open picking"><span class="nm">Cupo abierto</span><span class="tag">Anotando…</span></div>`;
         return `<div class="slot open"><span class="nm">Cupo abierto</span>${can ? (S.confirm===k
           ? `<span class="confirm"><button class="btn small primary" data-act="join" data-d="${d}" data-c="${ci}" data-s="${si}">Confirmar</button><button class="btn small" data-act="cancelC">No</button></span>`
-          : `<button class="btn small" data-act="ask" data-k="${k}">Anotarme</button>`) : ""}</div>`;
+          : `<button class="btn small" data-act="ask" data-k="${k}">Anotarme</button>`) : ""}${S.admin ? `<button class="btn small adm" data-act="openAssign" data-k="${ak}">Anotar a alguien</button>` : ""}</div>`;
       }
       const mine = p === S.me, k = `leave:${d}:${ci}:${si}`;
-      return `<div class="slot ${mine?"mine":""} ${p===GUEST?"guest":""}"><span class="nm">${esc(name(p))}</span>${mine ? (S.confirm===k
+      return `<div class="slot ${mine?"mine":""} ${isGuest(p)?"guest":""}"><span class="nm">${esc(name(p))}</span>${mine ? (S.confirm===k
         ? `<span class="confirm"><button class="btn small danger" data-act="leave" data-d="${d}" data-c="${ci}" data-s="${si}">Sí, cancelar</button><button class="btn small" data-act="cancelC">No</button></span>`
         : `<button class="btn small danger" data-act="ask" data-k="${k}">No puedo ir</button>`) : ""}</div>`;
     };
@@ -584,6 +599,7 @@ function vCal(){
     return `<article class="cday ${courts.length?"":"empty"} ${past?"past":""}"><div class="dl"><b>${dn}</b><span>${dt.getDate()} de ${MONL[dt.getMonth()]}</span>${past ? `<br><span class="tag pasttag">Ya pasó</span>` : ""}${dayWa ? `<br>${waBtn(waDayText(w,d), "", `Enviar los juegos del ${DAYS[d].toLowerCase()} por WhatsApp`)}` : ""}</div>
       ${courts.length ? `<div class="courts">${courts.map((c,n)=>{ const ci = c.ci, off = can.has(ci); return `<div class="court ${off?"cancelled":""}"><div class="ch"><h3>${courtLabel(c)}</h3>${off ? `<span class="tag cxl">Cancelada</span>` : `<span class="t">${c.time?fmtTime(c.time):""}</span>`}</div>
         <div class="field"><div class="side">${slot(ci,0,c.slots[0])}${slot(ci,1,c.slots[1])}</div><div class="net" aria-hidden="true"></div><div class="side">${slot(ci,2,c.slots[2])}${slot(ci,3,c.slots[3])}</div></div>
+        ${S.admin && S.assign && S.assign.startsWith(`${w}:${d}:${ci}:`) ? `<div class="assignbox">${assignForm(w,d,ci,+S.assign.split(":")[3])}</div>` : ""}
         ${off ? `<p class="cnote">No se completó antes de las 9:00 pm del día anterior.</p>` : (!past && beforeDl && incomplete(c) ? `<p class="cnote">Si no se llena, se cancela ${deadlineLabel(w,d)}.</p>` : "")}</div>`; }).join("")}</div>`
         : `<p class="muted" style="margin:0;align-self:center">Sin juegos programados.</p>`}
       ${dayWa && S.waDay===d ? `<div class="daywa notify ${S.notifyKind==="join"?"ok":""}"><span>${notifyMsg(w,d)}</span>${waBtn(waDayText(w,d), "Avisar al grupo", "Avisar al grupo por WhatsApp")}<button class="btn small" data-act="dismissNotify">Ahora no</button></div>` : ""}</article>`;
@@ -606,8 +622,18 @@ const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
 const pageUrl = () => location.href.split("#")[0].split("?")[0];
 const pinMsg = id => `Hola ${name(id)}, para PP AM entra en ${pageUrl()} con tu nombre y este PIN: *${S.newPins[id]}*. Puedes cambiarlo en la pestaña Disponibilidad.`;
 const waBtn = (text, label, title, size) => `<a class="wa-btn${label ? " wide" : ""}${size ? " " + size : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
+function assignForm(w,d,ci,si){
+  const busy = activeAssigned(w,d), marked = new Set(availOn(w,d)), sel = S.assignSel || "";
+  const opts = sortedPlayers().filter(([id]) => !busy.has(id))
+    .map(([id,pl]) => `<option value="${id}" ${sel===id?"selected":""}>${esc(pl.name)}${marked.has(id)?" ✓":""}</option>`).join("");
+  return `<div class="assign"><select id="asgSel" aria-label="Jugador a anotar"><option value="">— Elige jugador —</option>${opts}<option value="${GUEST}" ${sel===GUEST?"selected":""}>Invitado</option><option value="__guestname__" ${sel==="__guestname__"?"selected":""}>Invitado con nombre…</option></select>
+    ${sel==="__guestname__" ? `<input type="text" id="asgName" maxlength="30" placeholder="Nombre del invitado" value="${esc(S.guestName||"")}" autocomplete="off">` : ""}
+    <div class="row"><button class="btn small primary" data-act="doAssign" data-d="${d}" data-c="${ci}" data-s="${si}">Anotar</button><button class="btn small" data-act="cancelAssign">Cancelar</button></div>
+    <small class="muted">✓ = marcó disponibilidad</small></div>`;
+}
 function notifyMsg(w,d){
   const open = visCourts(w,d).filter(c => !cancelledSet(w,d).has(c.ci)).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+  if (S.notifyKind === "assign") return open ? `Anotaste a ${S.lastAssigned}. Avisa al grupo; todavía ${open===1?"queda 1 cupo":`quedan ${open} cupos`} ese día.` : `Anotaste a ${S.lastAssigned} y el juego quedó completo. Avisa al grupo.`;
   if (S.notifyKind === "join") return open ? `Te anotaste. Avisa al grupo; todavía ${open===1?"queda 1 cupo":`quedan ${open} cupos`} ese día.` : "Te anotaste y ya no quedan cupos ese día. Avisa al grupo que el juego está completo.";
   return "Quedó un cupo libre. Avisa al grupo para que alguien se anote.";
 }
@@ -706,6 +732,10 @@ main.addEventListener("submit", async e => {
 main.addEventListener("change", e => {
   const t = e.target, w = week(), d = S.schedDay;
   if (t.id === "showAll") { S.showAll = t.checked; render(); return; }
+  if (t.dataset.act === "setSlot" && t.value === "__guestname__") {
+    S.pgGuest = `${w}:${d}:${t.dataset.c}:${t.dataset.s}`; S.guestName = ""; render(); setTimeout(() => document.getElementById("pgGuestName")?.focus(), 0); return;
+  }
+  if (t.id === "asgSel") { S.assignSel = t.value; render(); if (t.value === "__guestname__") setTimeout(() => document.getElementById("asgName")?.focus(), 0); return; }
   if (t.dataset.act === "setSlot") {
     const was = t.dataset.v || "", to = t.value || "";
     ref(`games/${w}/${d}/courts/${t.dataset.c}/slots/${t.dataset.s}`).transaction(cur => (cur || "") === was ? to : undefined)
@@ -772,6 +802,28 @@ main.addEventListener("click", async e => {
         courts.forEach(c => c.slots = c.slots.map(x => x || free.shift() || ""));
         left = free.length; return courts;
       }).then(() => toast(left ? `Canchas llenas. ${left} sin lugar (máximo ${MAX_COURTS} canchas).` : "Canchas armadas en orden de llegada."), fail); break; }
+    case "openAssign": S.assign = b.dataset.k; S.assignSel = ""; S.guestName = ""; S.confirm = null; render(); break;
+    case "cancelAssign": S.assign = null; render(); break;
+    case "cancelPgGuest": S.pgGuest = null; render(); break;
+    case "savePgGuest": {
+      const nm = (document.getElementById("pgGuestName")?.value || "").trim();
+      if (!nm) { toast("Escribe el nombre del invitado."); return; }
+      const was = b.dataset.v || "", to = guestVal(nm); S.pgGuest = null; S.guestName = ""; S.forceRender = true; render();
+      ref(`games/${w}/${S.schedDay}/courts/${ci}/slots/${si}`).transaction(cur => (cur || "") === was ? to : undefined)
+        .then(res => { if (!res.committed) { toast("Ese puesto cambió mientras lo editabas. Revisa de nuevo."); render(); } }, fail); break; }
+    case "doAssign": {
+      let v = S.assignSel || "";
+      if (!v) { toast("Elige a quién anotar."); return; }
+      if (v === "__guestname__") { const nm = (document.getElementById("asgName")?.value || "").trim(); if (!nm) { toast("Escribe el nombre del invitado."); return; } v = guestVal(nm); }
+      if (isPast(w,d) || cancelledSet(w,d).has(ci)) { toast("Ese juego ya no admite cambios."); return; }
+      if (!isGuest(v) && activeAssigned(w,d).has(v)) { toast(`${name(v)} ya está en un juego ese día.`); return; }
+      S.assign = null; S.guestName = ""; S.forceRender = true;
+      try {
+        const res = await ref(`games/${w}/${d}/courts/${ci}/slots/${si}`).transaction(cur => cur === "" ? v : undefined);
+        if (!res.committed) toast("Ese cupo ya fue tomado.");
+        else { S.waDay = d; S.notifyKind = "assign"; S.lastAssigned = name(v); toast(`${name(v)} quedó anotado.`); }
+      } catch (err) { fail(err); }
+      render(); break; }
     case "join": case "leave": {
       S.confirm = null;
       if (isPast(w,d) || cancelledSet(w,d).has(ci)) { toast(isPast(w,d) ? "Ese día ya pasó." : "Ese juego se canceló porque no se completó a las 9:00 pm."); render(); return; }
