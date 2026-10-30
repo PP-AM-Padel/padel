@@ -484,7 +484,7 @@ function vPlayers(){
   ${vAdmins()}`;
 }
 function vAdmins(){
-  const list = Object.entries(S.admins || {}).filter(([,a]) => a && a.name).sort((a,b) => a[1].name.localeCompare(b[1].name, "es"));
+  const list = Object.entries(S.admins || {}).filter(([,a]) => a && a.name && !a.hidden).sort((a,b) => a[1].name.localeCompare(b[1].name, "es"));
   const pinOf = (id,a) => { const k = S.adminPins[id]; return k && hash(k) === a.pinHash ? k : ""; };
   return `<section class="panel">
     <h2>Administradores</h2>
