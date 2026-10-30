@@ -316,7 +316,7 @@ const S = {
   players: {}, avail: {}, games: {}, loaded: { players:false, avail:false, games:false },
   me: ls.get("padel.me") || "", meKey: ls.get("padel.meKey") || "", loginOpen: false, newPins: (() => { try { return JSON.parse(ls.get("padel.pins") || "{}"); } catch { return {}; } })(), fails: 0, blockedUntil: 0, admin: ls.get("padel.admin") === "1", tab: ls.get("padel.tab") || "calendario",
   schedDay: Math.max(0, (today.getDay()+6)%7), showAll: false, confirm: null, wa: false,
-  pinHash: hash(DEFAULT_PIN), online: true, pinOpen: false
+  pinHash: hash(DEFAULT_PIN), admins: {}, adminPins: (() => { try { return JSON.parse(ls.get("padel.adminPins") || "{}"); } catch { return {}; } })(), online: true, pinOpen: false
 };
 // La encuesta de la próxima semana se abre el jueves (jueves a domingo).
 const pollOpen = [4,5,6,0].includes(today.getDay());
@@ -339,7 +339,7 @@ const GUEST = "__guest__";
 // Invitado con nombre: se guarda como "guest:Nombre".
 const isGuest = id => id === GUEST || (typeof id === "string" && id.startsWith("guest:"));
 const guestVal = n => "guest:" + n.trim().replace(/\s+/g, " ").slice(0, 30);
-const name = id => id === GUEST ? "Invitado" : isGuest(id) ? `${id.slice(6)} (invitado)` : (S.players[id]?.name || "(jugador eliminado)");
+const name = id => id === GUEST ? "Invitado" : isGuest(id) ? id.slice(6) : (S.players[id]?.name || "(jugador eliminado)");
 const daysOf = (w, pid) => { const o = S.avail[w]?.[pid] || {}; return [0,1,2,3,4,5,6].filter(d => o["d"+d]); };
 // Orden de llegada: cada día marcado guarda la hora del servidor. Marcas antiguas (true, sin hora) se hicieron antes, así que van primero.
 const markedAt = (w,pid,d) => { const v = S.avail[w]?.[pid]?.["d"+d]; return typeof v === "number" ? v : 0; };
@@ -481,15 +481,33 @@ function vPlayers(){
       : `<div class="pitem"><span class="n">${esc(p.name)}</span>${pinCell(id,p)}<div class="acts">${known(id,p) ? waBtn(pinMsg(id), "Enviar PIN", `Enviar el PIN a ${p.name} por WhatsApp`, "small") : ""}<button class="btn small" data-act="genPin" data-id="${id}">Nuevo PIN</button><button class="btn small" data-act="askEdit" data-id="${id}">Editar</button><button class="btn small danger" data-act="askDel" data-id="${id}" aria-label="Eliminar ${esc(p.name)}">✕</button></div></div>`).join("")}</div>`
       : `<p class="note" style="margin-top:12px">Todavía no hay jugadores. Agrega el primero arriba; cada uno recibe un PIN para entrar.</p>`}
   </section>
+  ${vAdmins()}`;
+}
+function vAdmins(){
+  const list = Object.entries(S.admins || {}).filter(([,a]) => a && a.name).sort((a,b) => a[1].name.localeCompare(b[1].name, "es"));
+  const pinOf = (id,a) => { const k = S.adminPins[id]; return k && hash(k) === a.pinHash ? k : ""; };
+  return `<section class="panel">
+    <h2>Administradores</h2>
+    <p class="lead">Cada administrador entra con su propio PIN en el botón <b>Admin</b>. Al agregar uno se le genera un PIN; envíaselo por privado.</p>
+    <form class="row" id="addAdminForm" style="margin-top:12px">
+      <input type="text" id="newAdminName" placeholder="Nombre del administrador" maxlength="30" style="flex:1;min-width:160px" autocomplete="off">
+      <button class="btn primary" type="submit">Agregar administrador</button>
+    </form>
+    ${list.length ? `<div class="plist">${list.map(([id,a]) => S.confirm===`deladm:${id}`
+      ? `<div class="pitem"><span class="n">¿Quitar a ${esc(a.name)} como administrador?</span><div class="acts"><button class="btn small danger" data-act="delAdmin" data-id="${id}">Quitar</button><button class="btn small" data-act="cancelC">No</button></div></div>`
+      : `<div class="pitem"><span class="n">${esc(a.name)}</span>${pinOf(id,a) ? `<b class="pin">${pinOf(id,a)}</b>` : `<span class="pin muted">••••••</span>`}<div class="acts">${pinOf(id,a) ? waBtn(`Hola ${a.name}, tu PIN de administrador de PP AM es *${pinOf(id,a)}*. Entra en ${pageUrl()} y toca Admin.`, "Enviar PIN", `Enviar el PIN a ${a.name} por WhatsApp`, "small") : ""}<button class="btn small" data-act="genAdminPin" data-id="${id}">Nuevo PIN</button><button class="btn small danger" data-act="askDelAdmin" data-id="${id}" aria-label="Quitar a ${esc(a.name)}">✕</button></div></div>`).join("")}</div>` : ""}
+  </section>
   <section class="panel">
-    <h2>PIN de administrador</h2>
-    <p class="lead">Protege las pestañas Programar y Jugadores. El PIN inicial es ${DEFAULT_PIN}; cámbialo antes de compartir la página.</p>
+    <h2>PIN principal</h2>
+    <p class="lead">Es el PIN de administrador original. Sigue funcionando junto con los PIN de cada administrador.</p>
     <form class="row" id="pinForm" style="margin-top:12px">
       <input type="password" id="newPin" inputmode="numeric" placeholder="Nuevo PIN (mín. 4 dígitos)" maxlength="12" autocomplete="new-password" style="width:220px">
-      <button class="btn" type="submit">Cambiar PIN</button>
+      <button class="btn" type="submit">Cambiar PIN principal</button>
     </form>
   </section>`;
 }
+const saveAdminPins = () => ls.set("padel.adminPins", JSON.stringify(S.adminPins));
+const newAdminPin = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // 2. Disponibilidad
 function vAvail(){
@@ -527,10 +545,13 @@ function vSched(){
   const full = Math.floor(av.length/4);
   const slotSel = (ci, si, val) => {
     if (S.pgGuest === `${w}:${d}:${ci}:${si}`) return `<div class="slot sel guestform"><input type="text" id="pgGuestName" maxlength="30" placeholder="Nombre del invitado" value="${esc(S.guestName||"")}" autocomplete="off"><div class="row"><button class="btn small primary" data-act="savePgGuest" data-c="${ci}" data-s="${si}" data-v="${esc(val)}">Guardar</button><button class="btn small" data-act="cancelPgGuest">Cancelar</button></div></div>`;
-    const opts = pool.filter(id => id===val || !asg.has(id));
-    if (val && !isGuest(val) && !opts.includes(val)) opts.unshift(val);
+    // Siempre se listan todos: primero quienes marcaron (en orden de llegada), luego el resto del grupo, luego invitados.
+    const free = id => id === val || !asg.has(id);
+    const okAv = av.filter(free), others = all.map(([id]) => id).filter(id => !av.includes(id) && free(id));
+    if (val && !isGuest(val) && !okAv.includes(val) && !others.includes(val)) others.unshift(val);
+    const o = id => `<option value="${id}" ${id===val?"selected":""}>${esc(name(id))}</option>`;
     return `<div class="slot sel ${val?"":"open"}"><select data-act="setSlot" data-c="${ci}" data-s="${si}" data-v="${val}" aria-label="Cancha ${ci+1}, puesto ${si+1}">
-      <option value="">Cupo abierto</option>${opts.map(id => `<option value="${id}" ${id===val?"selected":""}>${esc(name(id))}${av.includes(id)?"":" (no marcó)"}</option>`).join("")}${val && isGuest(val) && val !== GUEST ? `<option value="${esc(val)}" selected>${esc(name(val))}</option>` : ""}<option value="${GUEST}" ${val===GUEST?"selected":""}>Invitado</option><option value="__guestname__">Invitado con nombre…</option></select></div>`;
+      <option value="">Cupo abierto</option>${okAv.length ? `<optgroup label="Marcaron este día">${okAv.map(o).join("")}</optgroup>` : ""}${others.length ? `<optgroup label="Resto del grupo">${others.map(o).join("")}</optgroup>` : ""}<optgroup label="Invitados">${val && isGuest(val) && val !== GUEST ? `<option value="${esc(val)}" selected>${esc(name(val))}</option>` : ""}<option value="${GUEST}" ${val===GUEST?"selected":""}>Invitado (sin nombre)</option><option value="__guestname__">Escribir nombre…</option></optgroup></select></div>`;
   };
   return `
   <section class="panel">
@@ -547,7 +568,6 @@ function vSched(){
       ${av.length ? `<div class="chips">${av.map((id,i) => `<span class="chip ${asg.has(id)?"as":""}" title="Marcó: ${fmtStamp(markedAt(w,id,d))}"><b class="ord">${i+1}</b>${esc(name(id))}${asg.has(id)?`<small>C${courts[asg.get(id)]?.num || "?"}</small>`:""}</span>`).join("")}</div>
       <div class="legend"><span><i style="background:var(--open-bg);border:1px dashed var(--open-line)"></i>Sin cancha</span><span><i style="background:var(--court-soft)"></i>Asignado (C = cancha)</span><span>El número es el orden en que marcaron</span></div>`
         : `<p class="muted">Nadie ha marcado este día.</p>`}
-      <label class="muted" style="margin-top:12px;font-size:14px;display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="showAll" style="margin-top:3px" ${S.showAll?"checked":""}> Mostrar también a quienes no marcaron este día</label>
     </section>
     <section class="panel">
       <div class="row" style="justify-content:space-between">
@@ -591,7 +611,7 @@ function vCal(){
           : `<button class="btn small" data-act="ask" data-k="${k}">Anotarme</button>`) : ""}${S.admin ? `<button class="btn small adm" data-act="openAssign" data-k="${ak}">Anotar a alguien</button>` : ""}</div>`;
       }
       const mine = p === S.me, k = `leave:${d}:${ci}:${si}`;
-      return `<div class="slot ${mine?"mine":""} ${isGuest(p)?"guest":""}"><span class="nm">${esc(name(p))}</span>${mine ? (S.confirm===k
+      return `<div class="slot ${mine?"mine":""} ${p===GUEST?"guest":""}"><span class="nm">${esc(name(p))}</span>${mine ? (S.confirm===k
         ? `<span class="confirm"><button class="btn small danger" data-act="leave" data-d="${d}" data-c="${ci}" data-s="${si}">Sí, cancelar</button><button class="btn small" data-act="cancelC">No</button></span>`
         : `<button class="btn small danger" data-act="ask" data-k="${k}">No puedo ir</button>`) : ""}</div>`;
     };
@@ -624,12 +644,12 @@ const pinMsg = id => `Hola ${name(id)}, para PP AM entra en ${pageUrl()} con tu 
 const waBtn = (text, label, title, size) => `<a class="wa-btn${label ? " wide" : ""}${size ? " " + size : ""}" href="${waLink(text)}" target="_blank" rel="noopener" title="${esc(title)}" aria-label="${esc(title)}">${WA_ICON}${label ? `<span>${esc(label)}</span>` : ""}</a>`;
 function assignForm(w,d,ci,si){
   const busy = activeAssigned(w,d), marked = new Set(availOn(w,d)), sel = S.assignSel || "";
-  const opts = sortedPlayers().filter(([id]) => !busy.has(id))
-    .map(([id,pl]) => `<option value="${id}" ${sel===id?"selected":""}>${esc(pl.name)}${marked.has(id)?" ✓":""}</option>`).join("");
-  return `<div class="assign"><select id="asgSel" aria-label="Jugador a anotar"><option value="">— Elige jugador —</option>${opts}<option value="${GUEST}" ${sel===GUEST?"selected":""}>Invitado</option><option value="__guestname__" ${sel==="__guestname__"?"selected":""}>Invitado con nombre…</option></select>
+  const o = id => `<option value="${id}" ${sel===id?"selected":""}>${esc(name(id))}</option>`;
+  const yes = availOn(w,d).filter(id => !busy.has(id)), rest = sortedPlayers().map(([id]) => id).filter(id => !busy.has(id) && !marked.has(id));
+  return `<div class="assign"><select id="asgSel" aria-label="Jugador a anotar"><option value="">— Elige jugador —</option>${yes.length ? `<optgroup label="Marcaron este día">${yes.map(o).join("")}</optgroup>` : ""}${rest.length ? `<optgroup label="Resto del grupo">${rest.map(o).join("")}</optgroup>` : ""}<optgroup label="Invitados"><option value="${GUEST}" ${sel===GUEST?"selected":""}>Invitado (sin nombre)</option><option value="__guestname__" ${sel==="__guestname__"?"selected":""}>Escribir nombre…</option></optgroup></select>
     ${sel==="__guestname__" ? `<input type="text" id="asgName" maxlength="30" placeholder="Nombre del invitado" value="${esc(S.guestName||"")}" autocomplete="off">` : ""}
     <div class="row"><button class="btn small primary" data-act="doAssign" data-d="${d}" data-c="${ci}" data-s="${si}">Anotar</button><button class="btn small" data-act="cancelAssign">Cancelar</button></div>
-    <small class="muted">✓ = marcó disponibilidad</small></div>`;
+    </div>`;
 }
 function notifyMsg(w,d){
   const open = visCourts(w,d).filter(c => !cancelledSet(w,d).has(c.ci)).reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
@@ -697,7 +717,8 @@ document.getElementById("pinCancel").onclick = () => { S.pinOpen = false; docume
 document.getElementById("pinForm0").addEventListener("submit", e => {
   e.preventDefault();
   const inp = document.getElementById("pinInput");
-  if (hash(inp.value.trim()) === S.pinHash) {
+  const h = hash(inp.value.trim());
+  if (h === S.pinHash || Object.values(S.admins || {}).some(a => a && a.pinHash === h)) {
     S.admin = true; ls.set("padel.admin", "1"); S.pinOpen = false; inp.value = ""; inp.blur();
     S.tab = "programar"; ls.set("padel.tab", S.tab); S.forceRender = true; render(); toast("Modo administrador activado.");
   } else { inp.value = ""; toast("PIN incorrecto."); }
@@ -720,6 +741,13 @@ main.addEventListener("submit", async e => {
     const h = playerHash(S.me, pin); inp.value = ""; inp.blur();
     S.meKey = h; ls.set("padel.meKey", h);
     ref(`players/${S.me}/pinHash`).set(h).then(() => toast("Tu PIN quedó actualizado."), fail);
+  }
+  if (e.target.id === "addAdminForm") {
+    const inp = document.getElementById("newAdminName"), n = inp.value.trim().replace(/\s+/g, " ");
+    if (!n) return;
+    const r = ref("config/admins").push(), pin = newAdminPin();
+    S.adminPins[r.key] = pin; saveAdminPins(); inp.value = ""; inp.blur();
+    r.set({ name: n, pinHash: hash(pin), createdAt: Date.now() }).then(() => toast(`${n} es administrador. Su PIN es ${pin}.`), fail);
   }
   if (e.target.id === "pinForm") {
     const inp = document.getElementById("newPin"); const p = inp.value.trim();
@@ -841,6 +869,10 @@ main.addEventListener("click", async e => {
       render(); break; }
     case "toggleWa": S.wa = !S.wa; render(); break;
     case "uncancel": ref(`games/${w}/${S.schedDay}/closed/cancelled`).remove().then(() => toast("Cancelación quitada."), fail); break;
+    case "genAdminPin": { const id = b.dataset.id, pin = newAdminPin(); S.adminPins[id] = pin; saveAdminPins();
+      ref(`config/admins/${id}/pinHash`).set(hash(pin)).then(() => toast(`PIN nuevo: ${pin}`), fail); break; }
+    case "askDelAdmin": S.confirm = `deladm:${b.dataset.id}`; render(); break;
+    case "delAdmin": { const id = b.dataset.id; S.confirm = null; ref(`config/admins/${id}`).remove().then(() => toast("Administrador quitado."), fail); break; }
     case "dismissNotify": S.waDay = null; render(); break;
     case "copyWaDay": {
       const ta = document.getElementById("waDayText");
@@ -872,6 +904,8 @@ if (FIREBASE_URL.includes("TU-PROYECTO")) {
   let everOn = false;
   ref(".info/connected").on("value", s => { if (s.val()) everOn = true; S.online = !!s.val() || !everOn; renderHeader(); });
   ref("config/pinHash").on("value", s => { S.pinHash = s.val() || hash(DEFAULT_PIN); });
+  // Varios administradores: cada uno con su propio PIN en config/admins.
+  ref("config/admins").on("value", s => { S.admins = s.val() || {}; render(); });
   subscribe();
 }
 })();
