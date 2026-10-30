@@ -515,7 +515,7 @@ function vSched(){
   const slotSel = (ci, si, val) => {
     const opts = pool.filter(id => id===val || !asg.has(id));
     if (val && val !== GUEST && !opts.includes(val)) opts.unshift(val);
-    return `<div class="slot sel ${val?"":"open"}"><select data-act="setSlot" data-c="${ci}" data-s="${si}" aria-label="Cancha ${ci+1}, puesto ${si+1}">
+    return `<div class="slot sel ${val?"":"open"}"><select data-act="setSlot" data-c="${ci}" data-s="${si}" data-v="${val}" aria-label="Cancha ${ci+1}, puesto ${si+1}">
       <option value="">Cupo abierto</option>${opts.map(id => `<option value="${id}" ${id===val?"selected":""}>${esc(name(id))}${av.includes(id)?"":" (no marcó)"}</option>`).join("")}<option value="${GUEST}" ${val===GUEST?"selected":""}>Invitado</option></select></div>`;
   };
   return `
@@ -707,7 +707,9 @@ main.addEventListener("change", e => {
   const t = e.target, w = week(), d = S.schedDay;
   if (t.id === "showAll") { S.showAll = t.checked; render(); return; }
   if (t.dataset.act === "setSlot") {
-    ref(`games/${w}/${d}/courts/${t.dataset.c}/slots/${t.dataset.s}`).set(t.value || "").catch(fail);
+    const was = t.dataset.v || "", to = t.value || "";
+    ref(`games/${w}/${d}/courts/${t.dataset.c}/slots/${t.dataset.s}`).transaction(cur => (cur || "") === was ? to : undefined)
+      .then(res => { if (!res.committed) { toast("Ese puesto cambió mientras lo editabas. Revisa de nuevo."); render(); } }, fail);
   } else if (t.dataset.act === "setNum") {
     ref(`games/${w}/${d}/courts/${t.dataset.c}/num`).set(t.value).catch(fail);
   } else if (t.dataset.act === "setTime") {
@@ -751,19 +753,25 @@ main.addEventListener("click", async e => {
       const losing = courts.slice(n).some(c => c.slots.some(Boolean));
       if (losing && !b.dataset.force) { S.confirm = "shrink"; S.shrinkTo = n; render(); return; }
       S.confirm = null;
-      const next = courts.slice(0, n);
-      while (next.length < n) next.push(newCourt(next));
-      ref(`games/${w}/${S.schedDay}/courts`).set(next.length ? next : null).catch(fail); break; }
+      ref(`games/${w}/${S.schedDay}/courts`).transaction(cur => {
+        const next = normCourts(cur).slice(0, n);
+        while (next.length < n) next.push(newCourt(next));
+        return next.length ? next : null;
+      }).catch(fail); break; }
     case "clearDay":
-      ref(`games/${w}/${S.schedDay}/courts`).set(courtsOf(w,S.schedDay).map(c => ({ time: c.time, slots: ["","","",""] }))).catch(fail); break;
+      ref(`games/${w}/${S.schedDay}/courts`).transaction(cur => { const cs = normCourts(cur); return cs.length ? cs.map(c => ({ time: c.time, num: c.num, slots: ["","","",""] })) : null; }).catch(fail); break;
     case "autofill": {
       // Llena por orden de llegada: los primeros 4 a la cancha 1, los siguientes a la 2, etc. Agrega canchas si hacen falta (máx. 4).
-      const day = S.schedDay, asg = assignedOn(w,day), free = availOn(w,day).filter(id => !asg.has(id));
-      const courts = courtsOf(w,day);
-      let open = courts.reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
-      while (open < free.length && courts.length < MAX_COURTS) { courts.push(newCourt(courts)); open += 4; }
-      courts.forEach(c => c.slots = c.slots.map(x => x || free.shift() || ""));
-      ref(`games/${w}/${day}/courts`).set(courts).then(() => toast(free.length ? `Canchas llenas. ${free.length} sin lugar (máximo ${MAX_COURTS} canchas).` : "Canchas armadas en orden de llegada."), fail); break; }
+      // Se arma sobre lo que hay en la base de datos en ese momento, para no borrar a quien se anotó mientras tanto.
+      const day = S.schedDay, order = availOn(w,day); let left = 0;
+      ref(`games/${w}/${day}/courts`).transaction(cur => {
+        const courts = normCourts(cur), taken = new Set(courts.flatMap(c => c.slots).filter(Boolean));
+        const free = order.filter(id => !taken.has(id));
+        let open = courts.reduce((n,c) => n + c.slots.filter(x => !x).length, 0);
+        while (open < free.length && courts.length < MAX_COURTS) { courts.push(newCourt(courts)); open += 4; }
+        courts.forEach(c => c.slots = c.slots.map(x => x || free.shift() || ""));
+        left = free.length; return courts;
+      }).then(() => toast(left ? `Canchas llenas. ${left} sin lugar (máximo ${MAX_COURTS} canchas).` : "Canchas armadas en orden de llegada."), fail); break; }
     case "join": case "leave": {
       S.confirm = null;
       if (isPast(w,d) || cancelledSet(w,d).has(ci)) { toast(isPast(w,d) ? "Ese día ya pasó." : "Ese juego se canceló porque no se completó a las 9:00 pm."); render(); return; }
